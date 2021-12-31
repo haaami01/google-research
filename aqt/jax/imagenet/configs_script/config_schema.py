@@ -30,12 +30,46 @@ bool_ph = config_schema_utils.bool_ph
 
 def get_base_config(use_auto_acts):
   """Base ConfigDict for resnet, does not yet have fields for individual layers."""
-  base_config = config_schema_utils.get_base_config(use_auto_acts)
+  base_config = config_schema_utils.get_base_config(
+      use_auto_acts, fp_quant=False)
   base_config.update({
       "base_learning_rate": float_ph(),
       "momentum": float_ph(),
       "model_hparams": {},
+      "act_function": str_ph(),  # add a new field that controls act function
+      "shortcut_ch_shrink_method": str_ph(),
+      "shortcut_ch_expand_method": str_ph(),
+      "shortcut_spatial_method": str_ph(),
+      "lr_scheduler": {
+          "warmup_epochs": int_ph(),
+          "cooldown_epochs": int_ph(),
+          "scheduler": str_ph(),  # "cosine", "linear", or "step" lr decay
+          "num_epochs": int_ph(),
+          "endlr": float_ph(),
+          "knee_lr": float_ph(),
+          "knee_epochs": int_ph(),
+      },
+      "optimizer": str_ph(),
+      "adam": {
+          "beta1": float_ph(),
+          "beta2": float_ph()
+      },
+      "early_stop_steps": int_ph(),
+      "weight_quant_start_step": int_ph(),
+      "teacher_model": str_ph(),
+      "is_teacher": bool_ph(),  # whether to train vanilla resnet or PokeBNN
+      "seed": int_ph(),
   })
+  if use_auto_acts:
+    # config_schema_utils is shared by wmt. To not make other code libraries
+    # affected, add the new bound coefficients here.
+    base_config.quant_act.bounds.update({
+        "fixed_bound": float_ph(),
+        "cams_coeff": float_ph(),
+        "cams_stddev_coeff": float_ph(),
+        "mean_of_max_coeff": float_ph(),
+        "use_old_code": bool_ph(),
+    })
 
   base_config.dense_layer = config_schema_utils.get_dense_config(base_config)
   # TODO(b/179063860): The input distribution is an intrinsic model
@@ -45,6 +79,15 @@ def get_base_config(use_auto_acts):
   base_config.dense_layer.quant_act.input_distribution = "positive"
   base_config.conv = config_schema_utils.get_conv_config(base_config)
   base_config.residual = get_residual_config(base_config)
+  # make the activation function in a residual block consistent with the global
+  # option
+  config_schema_utils.set_default_reference(
+      base_config.residual,
+      base_config,
+      field=[
+          "act_function", "shortcut_ch_shrink_method",
+          "shortcut_ch_expand_method", "shortcut_spatial_method"
+      ])
   return base_config
 
 
@@ -54,7 +97,7 @@ def get_residual_config(
   config = ml_collections.ConfigDict()
   config_schema_utils.set_default_reference(
       config,
-      parent_config, ["conv_proj", "conv_1", "conv_2", "conv_3"],
+      parent_config, ["conv_se", "conv_proj", "conv_1", "conv_2", "conv_3"],
       parent_field="conv")
   # TODO(b/179063860): The input distribution is an intrinsic model
   # property and shouldn't be part of the model configuration. Update
@@ -63,6 +106,13 @@ def get_residual_config(
   config.conv_proj.quant_act.input_distribution = "positive"
   config.conv_2.quant_act.input_distribution = "positive"
   config.conv_3.quant_act.input_distribution = "positive"
+  # add a new field in a residual block that control the act function
+  config.update({
+      "act_function": str_ph(),
+      "shortcut_ch_shrink_method": str_ph(),
+      "shortcut_ch_expand_method": str_ph(),
+      "shortcut_spatial_method": str_ph(),
+  })
 
   config.lock()
   return config
@@ -110,7 +160,12 @@ def get_config(num_blocks,
       # Controls the number of parameters in the model by multiplying the number
       # of conv filters in each layer by this number.
       "filter_multiplier": float_ph(),
+      "act_function": str_ph(),
+      "se_ratio": float_ph(),
+      "init_group": int_ph(),  # feature group in the second group conv layer
   })
+  config_schema_utils.set_default_reference(
+      model_hparams, base_config, "act_function", parent_field="act_function")
 
   base_config.lock()
   return base_config

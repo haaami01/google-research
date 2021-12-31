@@ -15,11 +15,11 @@
 
 """Flax implementation of ResNet V1 with optional quantization."""
 
+import dataclasses
 import functools
 import typing
-from typing import Any, Optional, Tuple, Type
+from typing import Any, Optional, Tuple, Type, Iterable
 
-import dataclasses
 from flax import linen as nn
 import jax.numpy as jnp
 
@@ -29,20 +29,29 @@ from aqt.jax.flax import struct as flax_struct
 
 
 dataclass = flax_struct.dataclass if not typing.TYPE_CHECKING else dataclasses.dataclass
+PRNGKey = Any
+Shape = Iterable[int]
+Dtype = Any
+Array = Any
 
 
 class ResidualBlock(nn.Module):
   """Bottleneck ResNet block."""
 
-  @dataclass
+  @dataclass  # pylint: disable=missing-class-docstring
   class HParams:
     # 'conv_proj' is only used in between different stages of residual blocks
     #   where the Tensor shape needs to be matched for the next stage.
     #   When it is not needed, it is set to None in hparams.
     conv_proj: Optional[aqt_flax_layers.ConvAqt.HParams]
+    conv_se: aqt_flax_layers.ConvAqt.HParams  # unused in this model
     conv_1: aqt_flax_layers.ConvAqt.HParams
     conv_2: aqt_flax_layers.ConvAqt.HParams
     conv_3: aqt_flax_layers.ConvAqt.HParams
+    act_function: str  # unused in this model
+    shortcut_ch_shrink_method: str  # unused in this model
+    shortcut_ch_expand_method: str  # unused in this model
+    shortcut_spatial_method: str  # unused in this model
 
   hparams: HParams
   filters: int
@@ -50,6 +59,7 @@ class ResidualBlock(nn.Module):
   strides: Tuple[int, int]
   train: bool
   dtype: Type[Any]
+  paxis_name: Optional[str] = 'batch'
 
   @nn.compact
   def __call__(
@@ -64,7 +74,6 @@ class ResidualBlock(nn.Module):
     train = self.train
     quant_context = self.quant_context
 
-    needs_projection = inputs.shape[-1] != filters * 4 or strides != (1, 1)
     batch_norm = functools.partial(
         nn.BatchNorm,
         use_running_average=not train,
@@ -77,55 +86,71 @@ class ResidualBlock(nn.Module):
         use_bias=False,
         dtype=dtype,
         quant_context=quant_context,
-        paxis_name='batch',
+        paxis_name=self.paxis_name,
         train=train)
 
-    residual = inputs
+    needs_projection = inputs.shape[-1] != filters * 4 or strides != (1, 1)
+    assert needs_projection != (hparams.conv_proj is None)
+
+    r1 = inputs
     if needs_projection:
-      if hparams.conv_proj is None:
-        raise ValueError(
-            'hparams.conv_proj cannot be None if needs_projection is True.')
-      assert hparams.conv_proj is not None
-      residual = conv(
+      r1 = conv(
           features=filters * 4,
           kernel_size=(1, 1),
           strides=strides,
           name='proj_conv',
           hparams=hparams.conv_proj)(
-              residual)
-      residual = batch_norm(name='proj_bn')(residual)
-    else:
-      if hparams.conv_proj is not None:
-        raise ValueError(
-            'hparams.conv_proj must be None if needs_projection is False.')
+              r1)
+      r1 = batch_norm(name='proj_bn')(r1)
 
-    y = conv(
+    def conv_block(
+        inputs,
+        n,
+        features,
+        kernel_size,
+        strides,
+        conv_hparams,
+        r1=None,
+    ):
+      y = conv(
+          features=features,
+          kernel_size=kernel_size,
+          name='conv' + n,
+          strides=strides,
+          hparams=conv_hparams)(inputs)
+      scale_init = nn.initializers.zeros if n == '3' else nn.initializers.ones
+      y = batch_norm(name='bn' + n, scale_init=scale_init)(y)
+      if r1 is not None:
+        y = r1 + y
+      y = nn.relu(y)
+      return y
+
+    y = conv_block(
+        inputs,
+        n='1',
         features=filters,
         kernel_size=(1, 1),
-        name='conv1',
-        hparams=hparams.conv_1)(
-            inputs)
-    y = batch_norm(name='bn1')(y)
-    y = nn.relu(y)
-    y = conv(
+        strides=(1, 1),
+        conv_hparams=hparams.conv_1)
+
+    y = conv_block(
+        y,
+        n='2',
         features=filters,
         kernel_size=(3, 3),
         strides=strides,
-        name='conv2',
-        hparams=hparams.conv_2)(
-            y)
-    y = batch_norm(name='bn2')(y)
-    y = nn.relu(y)
-    y = conv(
+        conv_hparams=hparams.conv_2)
+
+    y = conv_block(
+        y,
+        n='3',
         features=filters * 4,
         kernel_size=(1, 1),
-        name='conv3',
-        hparams=hparams.conv_3)(
-            y)
+        strides=(1, 1),
+        conv_hparams=hparams.conv_3,
+        r1=r1)
 
-    y = batch_norm(name='bn3', scale_init=nn.initializers.zeros)(y)
-    output = nn.relu(residual + y)
-    return output
+    return y
 
 
 class ResNet(nn.Module):
@@ -137,6 +162,9 @@ class ResNet(nn.Module):
     conv_init: aqt_flax_layers.ConvAqt.HParams
     residual_blocks: Tuple[ResidualBlock.HParams, Ellipsis]
     filter_multiplier: float
+    act_function: str  # unused in this model
+    se_ratio: float  # unused in this model
+    init_group: int  # unused in this model
 
   num_classes: int
   hparams: HParams
@@ -144,6 +172,7 @@ class ResNet(nn.Module):
   num_filters: int
   train: bool
   dtype: Type[Any]
+  paxis_name: Optional[str] = 'batch'
 
   @nn.compact
   def __call__(
@@ -166,7 +195,7 @@ class ResNet(nn.Module):
         name='init_conv',
         train=self.train,
         quant_context=self.quant_context,
-        paxis_name='batch',
+        paxis_name=self.paxis_name,
         hparams=hparams.conv_init,
     )(
         inputs)
@@ -194,8 +223,8 @@ class ResNet(nn.Module):
           quant_context=self.quant_context,
           strides=strides,
           train=self.train,
-          dtype=dtype)(
-              x)
+          dtype=dtype)(x)
+
     x = jnp.mean(x, axis=(1, 2))
 
     x = aqt_flax_layers.DenseAqt(
@@ -203,10 +232,25 @@ class ResNet(nn.Module):
         dtype=dtype,
         train=self.train,
         quant_context=self.quant_context,
-        paxis_name='batch',
+        paxis_name=self.paxis_name,
         hparams=hparams.dense_layer,
     )(x, padding_mask=None)
 
     x = jnp.asarray(x, dtype)
-    output = nn.log_softmax(x)
-    return output
+    # The output of ViT does not have log_softmax.
+    # To make resnet50 teacher has the same type of outputs as ViT,
+    # comment out the following line
+    # output = nn.log_softmax(x)
+    return x
+
+
+def create_resnet(hparams, dtype, train, **kwargs):
+  return ResNet(
+      num_classes=1000,
+      dtype=dtype,
+      hparams=hparams,
+      quant_context=quant_config.QuantContext(
+          update_bounds=False, quantize_weights=True),
+      num_filters=64,
+      train=train,
+      **kwargs)

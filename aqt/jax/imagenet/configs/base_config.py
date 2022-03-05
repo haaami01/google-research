@@ -23,6 +23,8 @@ from typing import List
 
 from aqt.jax.imagenet.configs_script import config_schema
 
+# pylint: disable=invalid-name
+
 
 class ImagenetType(enum.Enum):
   """Enum to distinguish between different resnet architectures.

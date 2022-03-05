@@ -11,7 +11,7 @@ This example uses linear learning rate warmup and cosine learning rate schedule.
 ### Requirements
 * TensorFlow dataset `imagenet2012:5.*.*`
 * `≈180GB` of RAM if you want to cache the dataset in memory for faster IO
-* Install package `dacite`. 
+* Install package `dacite`.
 
 ### Supported setups
 
@@ -38,11 +38,11 @@ defined therein. `quant_target` indicates which parts of the model are to be
 quantized and can accept an argument from one of the following values.
 
 - NONE: No quantization; default.
-- WEIGHTS_ONLY:	Weights are quantized only.
-- WEIGHTS_AND_FIXED_ACTS:	Weights and activations are quantized; no automatic GetBounds.
+- WEIGHTS_ONLY: Weights are quantized only.
+- WEIGHTS_AND_FIXED_ACTS: Weights and activations are quantized; no automatic GetBounds.
 - WEIGHTS_AND_AUTO_ACTS: Weights and activations are quantized; with automatic GetBounds.
 
 Example launch:
 ```
-python3 train.py --model_dir /tmp/resnet50_imagenet_w1_a_auto --hparams_config_dict configs/resnet50_w4_a4_auto.py
+python3 train.py --model_dir /tmp/resnet50_imagenet_w1_a_auto --hparams_config_dict configs/paper/resnet50_w4_a4_auto.py
 ```

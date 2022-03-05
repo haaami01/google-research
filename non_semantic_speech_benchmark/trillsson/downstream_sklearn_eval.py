@@ -115,7 +115,7 @@ def _get_sklearn_scores(
       test_glob=_glob('test'),
       embedding_name=edef.EMBEDDING_KEY_,
       label_name=label_name,
-      speaker_id=FLAGS.speaker_id_name)
+      speaker_id=FLAGS.speaker_id_key)
 
   return step, eval_score, test_score
 
@@ -219,16 +219,20 @@ def main(unused_argv):
         FLAGS.file_pattern_test,
         embedding_name=FLAGS.target_key[len('embedding/'):],
         label_name=FLAGS.label_name,
-        speaker_id=FLAGS.speaker_id_name,
+        speaker_id=FLAGS.speaker_id_key,
     )
     logging.info('Baseline performance: %f, %f', baseline_score_eval,
                  baseline_score_test)
   else:
     baseline_score_eval, baseline_score_test = None, None
 
-  sklearn_eval(FLAGS.embeddings_output_dir, FLAGS.folder_waittime_seconds,
-               FLAGS.eval_dir, FLAGS.max_error_count,
-               baseline_score_eval, baseline_score_test)
+  sklearn_eval(
+      watched_dir=FLAGS.embeddings_output_dir,
+      file_watchdog_waittime_seconds=FLAGS.folder_waittime_seconds,
+      eval_dir=FLAGS.eval_dir,
+      max_error_count=FLAGS.max_error_count,
+      baseline_score_eval=baseline_score_eval,
+      baseline_score_test=baseline_score_test)
 
 
 if __name__ == '__main__':

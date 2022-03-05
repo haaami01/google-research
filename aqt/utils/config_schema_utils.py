@@ -120,8 +120,11 @@ def get_dense_config(
   """Creates a ConfigDict corresponding to aqt.flax_layers.DenseAqt.HParams."""
   config = ml_collections.ConfigDict()
   set_default_reference(config, parent_config, [
-      "weight_prec", "weight_quant_granularity", "quant_type", "quant_act",
-      "weight_half_shift"
+      "weight_prec",
+      "weight_quant_granularity",
+      "quant_type",
+      "quant_act",
+      "weight_half_shift",
   ])
   config.lock()
   return config
@@ -158,10 +161,14 @@ def get_fp_config():
   return config
 
 
+
+
 # TODO(shivaniagrawal): base config should be more generic and only model
 # specific configs should be updated.
-def get_base_config(use_auto_acts,
-                    fp_quant):
+def get_base_config(
+    use_auto_acts,
+    fp_quant,
+    ):
   """Return a base ConfigDict for AQT; does not have model specific fields."""
   if use_auto_acts:
     bounds = ml_collections.ConfigDict({
@@ -207,6 +214,7 @@ def get_base_config(use_auto_acts,
   set_default_reference(
       base_config, base_config, "weight_prec", parent_field="prec")
   set_default_reference(base_config.quant_act, base_config, "prec")
+
   set_default_reference(
       base_config, base_config, "weight_half_shift", parent_field="half_shift")
   set_default_reference(base_config.quant_act, base_config, "half_shift")

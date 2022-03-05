@@ -38,7 +38,7 @@ class Encoder(tf.keras.Model):
 
   def __init__(self,
                vocab = None,
-               mask_special_tokens = True,
+               mask_special_tokens = False,
                trainable = True,
                **kwargs):
     super().__init__(trainable=trainable, **kwargs)
@@ -47,12 +47,18 @@ class Encoder(tf.keras.Model):
 
   def compute_mask(self,
                    inputs,
-                   mask = None):
+                   mask = None,
+                   mask_special_tokens = None):
     """Standard keras method."""
     del mask
     mask = self._vocab.padding_mask(inputs)
-    if self._mask_special_tokens:
+
+    # Overrides `self._mask_special_tokens` with `mask_special_tokens` if given.
+    if mask_special_tokens is None:
+      mask_special_tokens = self._mask_special_tokens
+    if mask_special_tokens:
       mask = tf.math.logical_and(mask, self._vocab.special_token_mask(inputs))
+
     return mask
 
 
@@ -74,14 +80,19 @@ class LookupEncoder(Encoder):
       dropout = 0.0,
       use_layer_norm = False,
       use_positional_embedding = False,
-      position_embed_init=initializers.HarmonicEmbeddings(
-          scale_factor=1e-4, max_freq=1.0),
+      position_embed_init = None,
       train_position_embed = True,
-      aaemb_init=tf.initializers.TruncatedNormal(stddev=1.0),
+      aaemb_init = None,
       aaemb_scale_factor = None,
       max_len = 1024,
       **kwargs):
     super().__init__(**kwargs)
+    if position_embed_init is None:
+      position_embed_init = initializers.HarmonicEmbeddings(
+          scale_factor=1e-4, max_freq=1.0)
+    if aaemb_init is None:
+      aaemb_init = tf.initializers.TruncatedNormal(stddev=1.0)
+
     self._use_layer_norm = use_layer_norm
 
     if use_positional_embedding:
@@ -132,12 +143,16 @@ class RecurrentEncoder(Encoder):
       rnn_input_dropout = 0.0,
       rnn_recurrent_dropout = 0.0,
       causal = False,
-      aaemb_init=tf.initializers.TruncatedNormal(stddev=1.0),
-      kernel_init=tf.initializers.GlorotUniform(),
-      recurrent_init=tf.initializers.Orthogonal(),
+      aaemb_init = None,
+      kernel_init = 'GlorotUniform',
+      recurrent_init = 'Orthogonal',
       aaemb_scale_factor = None,
       **kwargs):
     super().__init__(**kwargs)
+    if aaemb_init is None:
+      aaemb_init = tf.initializers.TruncatedNormal(stddev=1.0)
+    kernel_init = tf.keras.initializers.get(kernel_init)
+    recurrent_init = tf.keras.initializers.get(recurrent_init)
 
     self._aaemb_layer = nlp_layers.OnDeviceEmbedding(
         vocab_size=len(self._vocab),
@@ -187,14 +202,19 @@ class TransformerEncoder(Encoder):
       norm_output = True,
       causal = False,
       trainable_posemb = False,
-      posemb_init=initializers.HarmonicEmbeddings(
-          scale_factor=1e-4, max_freq=1.0),
-      aaemb_init=tf.initializers.RandomNormal(stddev=1.0),
-      kernel_init=tf.initializers.GlorotUniform(),
+      posemb_init = None,
+      aaemb_init = None,
+      kernel_init = 'GlorotUniform',
       aaemb_scale_factor = None,
       max_len = 1024,
       **kwargs):
     super().__init__(**kwargs)
+    if posemb_init is None:
+      posemb_init = initializers.HarmonicEmbeddings(
+          scale_factor=1e-4, max_freq=1.0)
+    if aaemb_init is None:
+      aaemb_init = tf.initializers.RandomNormal(stddev=1.0)
+    kernel_init = tf.keras.initializers.get(kernel_init)
     self._causal = causal
     self.posemb_layer = nlp_layers.PositionEmbedding(
         max_length=max_len,

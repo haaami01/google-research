@@ -1,4 +1,4 @@
-// Copyright 2022 The Google Research Authors.
+// Copyright 2023 The Google Research Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -50,6 +50,7 @@
 #include <deque>
 #include <functional>
 #include <iterator>
+#include <memory>
 #include <vector>
 
 #include "mediapipe/framework/calculator_framework.h"
@@ -97,7 +98,7 @@ class WindowCalculator : public mediapipe::CalculatorBase {
           " != ", cc->Inputs().NumEntries()));
     }
     if (!absl::c_all_of(options.enforce_input_dims(),
-                        [](int64 x) { return x >= 1; })) {
+                        [](int64_t x) { return x >= 1; })) {
       return absl::InvalidArgumentError("enforce_input_dims[i] must be >= 1.");
     }
     if (options.window_stride() <= 0) {
@@ -243,7 +244,7 @@ class WindowCalculator : public mediapipe::CalculatorBase {
           0) {
         return absl::OkStatus();
       }
-      auto result = absl::make_unique<std::vector<float>>();
+      auto result = std::make_unique<std::vector<float>>();
       for (const auto& r : buffer) {
         absl::c_copy(r, std::back_inserter(*result));
       }

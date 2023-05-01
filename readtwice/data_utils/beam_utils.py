@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2022 The Google Research Authors.
+# Copyright 2023 The Google Research Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@
 
 """Apache Beam utilities."""
 import collections
+from collections import abc
 import copy
 import math
 from typing import (Any, Iterable, Iterator, List, Mapping, MutableSequence,
@@ -142,7 +143,7 @@ class SummaryStatistics(object):
     Returns:
       The `SummaryStatistics` instance.
     """
-    if isinstance(dictionary['quantiles'], collections.Mapping):
+    if isinstance(dictionary['quantiles'], abc.Mapping):
       # Handles dictionaries made via `to_dict_for_json`.
       quantiles = [
           (float(key), value) for key, value in dictionary['quantiles'].items()

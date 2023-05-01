@@ -1,4 +1,4 @@
-// Copyright 2022 The Google Research Authors.
+// Copyright 2023 The Google Research Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -118,7 +118,7 @@ struct FilterSpatialDims : public Coordinates<dims> {
       }
       out->v[i] = d;
     }
-    return Status::OK();
+    return OkStatus();
   }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE int Size() const {

@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2022 The Google Research Authors.
+# Copyright 2023 The Google Research Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -120,6 +120,9 @@ class Stream(tf.keras.layers.Layer):
 
     if pad_freq_dim not in ['same', 'valid']:
       raise ValueError(f'Unsupported padding in frequency, `{pad_freq_dim}`.')
+    if isinstance(cell, dict):
+      # Ensure deserialization of Keras layer prior to inference
+      cell = tf.keras.layers.deserialize(cell)
 
     self.cell = cell
     self.inference_batch_size = inference_batch_size
@@ -161,12 +164,7 @@ class Stream(tf.keras.layers.Layer):
                        'can produce multiple outputs in time dim, '
                        'so conv can be used with use_one_step = False or True')
 
-    if self.ring_buffer_size_in_time_dim is not None:
-      # it is a special case when ring_buffer_size_in_time_dim is specified
-      # outside of the layer in this case we just build a ring buffer
-      # and do not check what is the type of the cell
-      pass
-    elif isinstance(wrapped_cell, tf.keras.layers.Conv2DTranspose):
+    if isinstance(wrapped_cell, tf.keras.layers.Conv2DTranspose):
       padding = wrapped_cell.get_config()['padding']
       strides = wrapped_cell.get_config()['strides']
       self.stride = strides[0]
@@ -250,12 +248,22 @@ class Stream(tf.keras.layers.Layer):
       # effective kernel size in time dimension
       if self.state_shape:
         self.ring_buffer_size_in_time_dim = self.state_shape[1]
-
-    else:
+    elif ring_buffer_size_in_time_dim is None:
       raise ValueError('Cell is not supported ', wrapped_cell)
 
+    if ring_buffer_size_in_time_dim is not None:
+      # In a special case when `ring_buffer_size_in_time_dim` is specified
+      # outside of the layer, we overwrite the computed
+      # `self.ring_buffer_size_in_time_dim` with this specified value.
+      logging.warning(
+          'ring_buffer_size_in_time_dim overwritten by the '
+          'passed-in value: %d', ring_buffer_size_in_time_dim)
+      self.ring_buffer_size_in_time_dim = ring_buffer_size_in_time_dim
+
     if self.ring_buffer_size_in_time_dim == 1:
-      logging.warning('There is no need to use Stream on time dim with size 1')
+      logging.warning(
+          'There is no need to use Stream on time dim with size 1: %s',
+          self.cell.name if hasattr(self.cell, 'name') else self.cell)
 
   def get_core_layer(self):
     """Get core layer which can be wrapped by quantizer."""
@@ -271,9 +279,26 @@ class Stream(tf.keras.layers.Layer):
     return self.stride
 
   def build(self, input_shape):
+    if not isinstance(input_shape, tf.TensorShape):
+      # Ensure input_shape is TensorShape
+      input_shape = tf.TensorShape(input_shape)
     super(Stream, self).build(input_shape)
 
     wrapped_cell = self.get_core_layer()
+    if isinstance(wrapped_cell,
+                  tf.keras.layers.Layer) and not wrapped_cell.built:
+      # Sometimes it's necessary to rebuild the inner layer e.g. when
+      # deserializing models for the TF Lite converter.
+
+      # NOTE: input_shape may correspond to an input matching a single streaming
+      # stride passed into the model. This can cause wrapped layers to fail --
+      # e.g. convolutions due to mismatch between kernel size and streaming
+      # dimension, as the implicit state concatenations are not simulated during
+      # construction. Solution is to set the streaming dimension as unspecified
+      faked_stream_dim_shape = input_shape.as_list()
+      faked_stream_dim_shape[1] = None
+      wrapped_cell.build(tf.TensorShape(faked_stream_dim_shape))
+
     if isinstance(wrapped_cell, tf.keras.layers.Conv2DTranspose):
       strides = wrapped_cell.get_config()['strides']
       kernel_size = wrapped_cell.get_config()['kernel_size']
@@ -332,6 +357,16 @@ class Stream(tf.keras.layers.Layer):
       # Create a state varaible for streaming inference mode (internal state).
       # Where states become a weight in the layer
       if self.ring_buffer_size_in_time_dim:
+
+        if self.pad_freq_dim == 'same':
+          # Additional padding value in frequency dimension
+          # defined by above function: frequeny_pad().
+          kernel_size = (self.kernel_size_freq - 1) * self.dilation_freq + 1
+          total_pad = kernel_size - self.stride_freq
+          output_feature_size = self.state_shape[2] + total_pad
+          # Note: override first feature dimension with padded value.
+          self.state_shape[2] = output_feature_size
+
         self.states = self.add_weight(
             name='states',
             shape=self.state_shape,

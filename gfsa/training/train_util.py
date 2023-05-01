@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2022 The Google Research Authors.
+# Copyright 2023 The Google Research Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Lint as: python3
 """Training helper functions that are shared across tasks."""
 
 import contextlib
@@ -26,6 +25,7 @@ from typing import Any, Callable, Dict, Iterable, Optional, Sequence, Tuple, Uni
 from absl import logging
 import dataclasses
 import flax
+import flax.optim
 import gin
 import jax
 import jax.numpy as jnp
@@ -161,7 +161,7 @@ def _parallel_train_step(
     agg_grads = jax.tree_map(
         lambda g: jnp.where(should_clip, g * max_global_norm / global_norm, g),
         agg_grads)
-    agg_metrics["gradient_was_clipped"] = should_clip.astype("float32")
+    agg_metrics["gradient_was_clipped"] = should_clip.astype("float32")  # pytype: disable=attribute-error  # numpy-scalars
 
   # Check for non-finite gradients.
   grads_ok = jnp.all(
@@ -171,7 +171,7 @@ def _parallel_train_step(
   updated_optimizer = optimizer.apply_gradient(agg_grads,
                                                **optimizer_hyper_params)
 
-  return updated_optimizer, grads_ok, agg_metrics, agg_grads
+  return updated_optimizer, grads_ok, agg_metrics, agg_grads  # pytype: disable=bad-return-type  # numpy-scalars
 
 
 def _build_parallel_train_step():
@@ -322,7 +322,7 @@ def build_averaging_validator(
         if accumulated is None:
           accumulated = metrics
         else:
-          accumulated = jax.tree_multimap(operator.add, accumulated, metrics)
+          accumulated = jax.tree_map(operator.add, accumulated, metrics)
         example_count += jnp.count_nonzero(batch.mask)
 
       assert example_count > 0, "Validation iterator must be nonempty"

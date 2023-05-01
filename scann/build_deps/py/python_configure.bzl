@@ -203,7 +203,6 @@ def _get_python_lib(repository_ctx, python_bin):
     if python_lib != None:
         return python_lib
     print_lib = ("<<END\n" +
-                 "from __future__ import print_function\n" +
                  "import site\n" +
                  "import os\n" +
                  "\n" +
@@ -255,10 +254,13 @@ def _get_python_include(repository_ctx, python_bin):
         repository_ctx,
         [
             python_bin,
+            "-Wignore",
             "-c",
-            "from __future__ import print_function;" +
-            "from distutils import sysconfig;" +
-            "print(sysconfig.get_python_inc())",
+            "import importlib; " +
+            "import importlib.util; " +
+            "print(importlib.import_module('distutils.sysconfig').get_python_inc() " +
+            "if importlib.util.find_spec('distutils.sysconfig') " +
+            "else importlib.import_module('sysconfig').get_path('include'))",
         ],
         error_msg = "Problem getting python include path.",
         error_details = ("Is the Python binary path set up right? " +
@@ -291,7 +293,6 @@ def _get_numpy_include(repository_ctx, python_bin):
         [
             python_bin,
             "-c",
-            "from __future__ import print_function;" +
             "import numpy;" +
             " print(numpy.get_include());",
         ],

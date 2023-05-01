@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2022 The Google Research Authors.
+# Copyright 2023 The Google Research Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -48,7 +48,9 @@ class ConvModel(base_model.BaseModel):
             filters=2,
             kernel_size=[1, 3],
             padding='SAME'))
-    self.bn1 = quantize.quantize_layer(tf.keras.layers.BatchNormalization())
+    self.bn1 = quantize.quantize_layer(
+        tf.keras.layers.BatchNormalization(),
+        quantize_config=default_8bit_quantize_configs.NoOpQuantizeConfig())
     self.relu1 = quantize.quantize_layer(tf.keras.layers.ReLU())
 
     self.conv2 = ring_buffer.RingBuffer(
@@ -65,7 +67,7 @@ class ConvModel(base_model.BaseModel):
         pad_time_dim='causal')
     self.bn2 = quantize.quantize_layer(
         tf.keras.layers.BatchNormalization(),
-        default_8bit_quantize_configs.NoOpQuantizeConfig())
+        quantize_config=default_8bit_quantize_configs.NoOpQuantizeConfig())
     self.relu2 = quantize.quantize_layer(tf.keras.layers.ReLU())
 
     self.flatten = ring_buffer.RingBuffer(

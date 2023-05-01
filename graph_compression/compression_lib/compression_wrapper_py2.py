@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2022 The Google Research Authors.
+# Copyright 2023 The Google Research Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -266,6 +266,9 @@ class ApplyCompression(object):
     if compression_op_spec.compression_option in COMP_OP_MAP:
       c = COMP_OP_MAP[compression_op_spec.compression_option](
           scope=scope, spec=compression_op_spec, global_step=self._global_step)
+      if isinstance(c, comp_op.CompressionOp):
+        self.last_alpha_update_step = getattr(
+            c, '_last_alpha_update_step', None)
     else:
       c = None
 

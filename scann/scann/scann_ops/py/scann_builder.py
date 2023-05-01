@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2022 The Google Research Authors.
+# Copyright 2023 The Google Research Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -113,6 +113,7 @@ class ScannBuilder(object):
       residual_quantization=None,
       n_dims=None):
     """Configure asymmetric hashing. Must call this or score_brute_force."""
+    del min_cluster_size  # Deprecated field.
     hash_types = ["lut16", "lut256"]
     if hash_type == hash_types[0]:
       clusters_per_block = 16
@@ -160,7 +161,6 @@ class ScannBuilder(object):
           }}
           noise_shaping_threshold: {anisotropic_quantization_threshold}
           expected_sample_size: {training_sample_size}
-          min_cluster_size: {min_cluster_size}
           max_clustering_iterations: {training_iterations}
         }}
       }} """

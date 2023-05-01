@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2022 The Google Research Authors.
+# Copyright 2023 The Google Research Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -30,7 +30,7 @@ from absl import flags
 import jax
 from jax import jit
 from jax import vmap
-import jax.experimental.optimizers
+import jax.example_libraries.optimizers
 import jax.numpy as np
 import matplotlib.pyplot as plt
 
@@ -237,7 +237,8 @@ def train_ncp(data_dim=2,
   train_many_steps = jit(train_many_steps, static_argnums=1)
 
   sw = None
-  opt_init, opt_update, opt_get_params = jax.experimental.optimizers.adam(lr)
+  opt_init, opt_update, opt_get_params = jax.example_libraries.optimizers.adam(
+      lr)
   opt_state = opt_init(ncp.params)
 
   start = timeit.default_timer()

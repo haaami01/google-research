@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2022 The Google Research Authors.
+# Copyright 2023 The Google Research Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -25,9 +25,9 @@ import tensorflow_datasets as tfds
 
 from do_wide_and_deep_networks_learn_the_same_things.large_scale_training import alt_resnet
 from do_wide_and_deep_networks_learn_the_same_things.large_scale_training import train_lib
-from tensorflow_models.official.legacy.image_classification import augment
-from tensorflow_models.official.legacy.image_classification import preprocessing
-from tensorflow_models.official.legacy.image_classification.efficientnet import efficientnet_model
+from official.legacy.image_classification import augment
+from official.legacy.image_classification import preprocessing
+from official.legacy.image_classification.efficientnet import efficientnet_model
 
 tf.enable_v2_behavior()
 

@@ -1,4 +1,4 @@
-// Copyright 2022 The Google Research Authors.
+// Copyright 2023 The Google Research Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@
 // doesn't set any metadata.
 
 #include <cstdint>
+#include <memory>
 #include <vector>
 
 #include "mediapipe/framework/calculator_framework.h"
@@ -98,7 +99,7 @@ class MergeSensorDataIntoAnnotatedRecordingCollectionCalculator
       sensor_type_by_input_stream_index_[current_stream_index] = {
           sensor_options.type(), sensor_options.subtype()};
 
-      auto sequence = absl::make_unique<Sequence>();
+      auto sequence = std::make_unique<Sequence>();
       sequence->mutable_metadata()->set_type(sensor_options.type());
       sequence->mutable_metadata()->set_subtype(sensor_options.subtype());
       sequence_by_input_stream_index_.push_back(std::move(sequence));
@@ -166,9 +167,9 @@ class MergeSensorDataIntoAnnotatedRecordingCollectionCalculator
       }
       cc->Outputs()
           .Tag(kOutputAnnotatedRecordingCollectionTag)
-          .Add(absl::make_unique<AnnotatedRecordingCollection>(output_)
-                   .release(),
-               mediapipe::Timestamp::PreStream());
+          .Add(
+              std::make_unique<AnnotatedRecordingCollection>(output_).release(),
+              mediapipe::Timestamp::PreStream());
     }
     return absl::OkStatus();
   }

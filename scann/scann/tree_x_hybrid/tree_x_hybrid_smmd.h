@@ -1,4 +1,4 @@
-// Copyright 2022 The Google Research Authors.
+// Copyright 2023 The Google Research Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@
 
 #include <cstdint>
 #include <functional>
+#include <utility>
 
 #include "absl/synchronization/mutex.h"
 #include "gtest/gtest_prod.h"
@@ -220,11 +221,9 @@ class TreeXHybridSMMD : public SingleMachineSearcherBase<T> {
   SCANN_INSTANTIATE_TREE_X_HYBRID_SMMD_FOR_TYPE(extern_keyword, int8_t);   \
   SCANN_INSTANTIATE_TREE_X_HYBRID_SMMD_FOR_TYPE(extern_keyword, uint8_t);  \
   SCANN_INSTANTIATE_TREE_X_HYBRID_SMMD_FOR_TYPE(extern_keyword, int16_t);  \
-  SCANN_INSTANTIATE_TREE_X_HYBRID_SMMD_FOR_TYPE(extern_keyword, uint16_t); \
   SCANN_INSTANTIATE_TREE_X_HYBRID_SMMD_FOR_TYPE(extern_keyword, int32_t);  \
   SCANN_INSTANTIATE_TREE_X_HYBRID_SMMD_FOR_TYPE(extern_keyword, uint32_t); \
   SCANN_INSTANTIATE_TREE_X_HYBRID_SMMD_FOR_TYPE(extern_keyword, int64_t);  \
-  SCANN_INSTANTIATE_TREE_X_HYBRID_SMMD_FOR_TYPE(extern_keyword, uint64_t); \
   SCANN_INSTANTIATE_TREE_X_HYBRID_SMMD_FOR_TYPE(extern_keyword, float);    \
   SCANN_INSTANTIATE_TREE_X_HYBRID_SMMD_FOR_TYPE(extern_keyword, double);
 

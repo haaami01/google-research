@@ -1,4 +1,18 @@
 # coding=utf-8
+# Copyright 2023 The Google Research Authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 # Copyright 2022 The Google Research Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -72,12 +86,12 @@ def generate_bond_topology_permutations(original_bt):
     Permutations of original bond topology.
   """
   num_heavy = np.sum(
-      [a != dataset_pb2.BondTopology.ATOM_H for a in original_bt.atoms])
+      [a != dataset_pb2.BondTopology.ATOM_H for a in original_bt.atom])
   for perm in itertools.permutations(range(num_heavy)):
     bt = copy.deepcopy(original_bt)
     for atom_idx in range(num_heavy):
-      bt.atoms[perm[atom_idx]] = original_bt.atoms[atom_idx]
-    for bond in bt.bonds:
+      bt.atom[perm[atom_idx]] = original_bt.atom[atom_idx]
+    for bond in bt.bond:
       if bond.atom_a < num_heavy:
         bond.atom_a = perm[bond.atom_a]
       if bond.atom_b < num_heavy:
@@ -94,24 +108,24 @@ def check_smiles_permutation_invariance(original_bt):
   Yields:
     Bond topology and two smiles variants, if found.
   """
-  logging.info('Checking %d', original_bt.bond_topology_id)
+  logging.info('Checking %d', original_bt.topo_id)
   smiles = None
   variance_found = False
   for bt in generate_bond_topology_permutations(original_bt):
-    mol = smu_utils_lib.bond_topology_to_molecule(bt)
+    mol = smu_utils_lib.bond_topology_to_rdkit_molecule(bt)
     this_smiles = Chem.MolToSmiles(
         Chem.RemoveHs(mol, sanitize=False),
         kekuleSmiles=True,
         isomericSmiles=False)
     # my little testing hack that includes the atom type of the first atom in
     # the smiles
-    # this_smiles += str(bt.atoms[0])
+    # this_smiles += str(bt.atom[0])
     if smiles is None:
       smiles = this_smiles
     else:
       if this_smiles != smiles:
         variance_found = True
-        yield (original_bt.bond_topology_id, smiles, this_smiles)
+        yield (original_bt.topo_id, smiles, this_smiles)
 
   if variance_found:
     beam.metrics.Metrics.counter('smu', 'bt_variant').inc()

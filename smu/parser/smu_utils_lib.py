@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2022 The Google Research Authors.
+# Copyright 2023 The Google Research Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -26,8 +26,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-# Lint as: python3
 """This class provides shared utilities for parsing and writing SMU7 files."""
 
 import collections
@@ -119,6 +117,12 @@ BOND_TYPE_TO_RDKIT = {
     dataset_pb2.BondTopology.BondType.BOND_TRIPLE: Chem.rdchem.BondType.TRIPLE,
 }
 
+RDKIT_TO_BOND_TYPE = {
+    Chem.rdchem.BondType.SINGLE: dataset_pb2.BondTopology.BondType.BOND_SINGLE,
+    Chem.rdchem.BondType.DOUBLE: dataset_pb2.BondTopology.BondType.BOND_DOUBLE,
+    Chem.rdchem.BondType.TRIPLE: dataset_pb2.BondTopology.BondType.BOND_TRIPLE,
+}
+
 INTEGER_TO_BOND_TYPE = [
     dataset_pb2.BondTopology.BondType.BOND_UNDEFINED,
     dataset_pb2.BondTopology.BondType.BOND_SINGLE,
@@ -144,7 +148,7 @@ ERROR_CODES = collections.OrderedDict([
     ('nsveca', 'error_single_point_energies'),
     ('nsvmr1', 'error_inconsistent_molecule_energy_turbomole_mrcc'),
     ('nsvmr2', 'error_inconsistent_cation_energy_turbomole_mrcc'),
-    ('nsvvib', 'error_normal_modes'),
+    ('nsvvib', 'error_vib_mode'),
     ('nsvor1', 'error_inconsistent_molecule_energy_turbomole_orca'),
     ('nsvor2', 'error_inconsistent_cation_energy_turbomole_orca'),
     ('nsvrot', 'error_rotational_modes'),
@@ -197,6 +201,9 @@ def special_case_bt_id_from_dat_id(dat_id, smiles):
 
   Returns:
     None if this is not a special case, bond topology id otherwise
+
+  Raises:
+    ValueError: if ID is 0 and not a known special case
   """
   if dat_id == 0:
     # Note that the smiles string for these special SMU1 cases is just the atom
@@ -258,7 +265,7 @@ def get_composition(topology):
   """
   counts = {char: 0 for char in ATOM_CHARS}
   heavy_atom_count = 0
-  for atom in topology.atoms:
+  for atom in topology.atom:
     counts[ATOM_TYPE_TO_CHAR[atom]] += 1
     if atom != dataset_pb2.BondTopology.AtomType.ATOM_H:
       heavy_atom_count += 1
@@ -272,6 +279,25 @@ def get_composition(topology):
       count_str = str(counts[c])
     components.append(c + count_str)
   return 'x{:02d}_{}'.format(heavy_atom_count, ''.join(components))
+
+
+def get_original_label(molecule):
+  """Returns the original id used to identify this molecule.
+
+  We use an integer molecule id, but the original data used a form like
+  x07_n6oh4.099599.008
+
+  Args:
+    molecule: dataset_pb2.Molecule
+
+  Returns:
+    string
+  """
+  bt_id = molecule.mol_id // 1000
+  if special_case_dat_id_from_bt_id(bt_id):
+    bt_id = 0
+  return '{:s}.{:06d}.{:03d}'.format(
+      get_composition(molecule.bond_topo[0]), bt_id, molecule.mol_id % 1000)
 
 
 _STOICHIOMETRY_WITH_HYDROGENS_COMPONENTS = [
@@ -337,7 +363,7 @@ def expanded_stoichiometry_from_topology(topology):
   """
   hydrogen_counts = compute_bonded_hydrogens(topology,
                                              compute_adjacency_matrix(topology))
-  return _expanded_stoichiometry_from_h_counts(topology.atoms, hydrogen_counts)
+  return _expanded_stoichiometry_from_h_counts(topology.atom, hydrogen_counts)
 
 
 def _generate_hydrogen_assignments(heavy_atoms, total_h):
@@ -470,14 +496,14 @@ def compute_adjacency_matrix(topology):
     An NxN matrix, where N equals the number of heavy atoms in a molecule.
   """
   side_length = len([
-      atom for atom in topology.atoms
+      atom for atom in topology.atom
       if atom != dataset_pb2.BondTopology.AtomType.ATOM_H
   ])
   adjacency_matrix = [[0] * side_length for _ in range(side_length)]
-  for bond in topology.bonds:
-    if topology.atoms[bond.atom_a] == dataset_pb2.BondTopology.AtomType.ATOM_H:
+  for bond in topology.bond:
+    if topology.atom[bond.atom_a] == dataset_pb2.BondTopology.AtomType.ATOM_H:
       continue
-    if topology.atoms[bond.atom_b] == dataset_pb2.BondTopology.AtomType.ATOM_H:
+    if topology.atom[bond.atom_b] == dataset_pb2.BondTopology.AtomType.ATOM_H:
       continue
     if bond.bond_type == dataset_pb2.BondTopology.BondType.BOND_SINGLE:
       adjacency_matrix[bond.atom_a][bond.atom_b] = 1
@@ -489,6 +515,26 @@ def compute_adjacency_matrix(topology):
       adjacency_matrix[bond.atom_a][bond.atom_b] = 3
       adjacency_matrix[bond.atom_b][bond.atom_a] = 3
   return adjacency_matrix
+
+
+def compact_adjacency_matrix_string(adjacency_matrix, join_str):
+  """Gets adjacency matrix as one line string.
+
+  This is the upper triangular part of the matrix.
+
+  Args:
+    adjacency_matrix: as returned by compute_adjacency_matrix
+    join_str: characters to put between lines of the maxtrix
+
+  Returns:
+    string
+  """
+  out = []
+  side_length = len(adjacency_matrix)
+  for i in range(0, side_length - 1):
+    out.append(''.join(
+        str(adjacency_matrix[i][j]) for j in range(i + 1, side_length)))
+  return join_str.join(out)
 
 
 def compute_bonded_hydrogens(topology, adjacency_matrix):
@@ -506,7 +552,7 @@ def compute_bonded_hydrogens(topology, adjacency_matrix):
   # Only the first len(adjacency_matrix) atoms in the ordered topology are heavy
   # atoms capable of # binding protons.
   num_bonded_hydrogens = [
-      ATOM_TYPE_TO_MAX_BONDS[atom] for atom in topology.atoms[:side_length]
+      ATOM_TYPE_TO_MAX_BONDS[atom] for atom in topology.atom[:side_length]
   ]
   # Subtract paired bonds (to other heavy atoms).
   for i in range(side_length):
@@ -525,7 +571,7 @@ def labeled_smiles(mol):
   because atom map 0 is never displayed.
 
   Args:
-    mol: a molecule.
+    mol: a rdkit_molecule.
 
   Returns:
     A labelled smiles string.
@@ -559,6 +605,9 @@ def create_bond_topology(atoms, connectivity_matrix_string, hydrogens_string):
 
   Returns:
     BondTopology
+
+  Raises:
+    ValueError: on unknown atom type
   """
   bond_topology = dataset_pb2.BondTopology()
 
@@ -567,11 +616,11 @@ def create_bond_topology(atoms, connectivity_matrix_string, hydrogens_string):
     if atom_type == 'h':
       continue
     try:
-      bond_topology.atoms.append(ATOM_CHAR_TO_TYPE[atom_type])
+      bond_topology.atom.append(ATOM_CHAR_TO_TYPE[atom_type])
     except KeyError as key_error:
       raise ValueError('Unknown atom type: {}'.format(atom_type)) from key_error
 
-  num_heavy_atoms = len(bond_topology.atoms)
+  num_heavy_atoms = len(bond_topology.atom)
 
   # Now add the bonds between the heavy atoms
   if num_heavy_atoms > 1:
@@ -580,7 +629,7 @@ def create_bond_topology(atoms, connectivity_matrix_string, hydrogens_string):
         connectivity_matrix_string):
       if bond_order == '0':
         continue
-      bond = bond_topology.bonds.add()
+      bond = bond_topology.bond.add()
       bond.atom_a = int(i)
       bond.atom_b = int(j)
       if bond_order == '1':
@@ -600,21 +649,19 @@ def create_bond_topology(atoms, connectivity_matrix_string, hydrogens_string):
       zip(hydrogens_string, expected_hydrogens)):
     actual_h = int(actual_h)
     diff = expected_h - actual_h
-    atom_type = bond_topology.atoms[atom_idx]
+    atom_type = bond_topology.atom[atom_idx]
     if diff == -1 and atom_type == dataset_pb2.BondTopology.AtomType.ATOM_N:
-      bond_topology.atoms[
-          atom_idx] = dataset_pb2.BondTopology.AtomType.ATOM_NPOS
+      bond_topology.atom[atom_idx] = dataset_pb2.BondTopology.AtomType.ATOM_NPOS
     elif diff == 1 and atom_type == dataset_pb2.BondTopology.AtomType.ATOM_O:
-      bond_topology.atoms[
-          atom_idx] = dataset_pb2.BondTopology.AtomType.ATOM_ONEG
+      bond_topology.atom[atom_idx] = dataset_pb2.BondTopology.AtomType.ATOM_ONEG
     elif diff:
       raise ValueError(
           f'Bad hydrogen count (actual={actual_h}, expected={expected_h} '
           f'for {atom_type}, index {atom_idx}')
     for _ in range(actual_h):
-      bond_topology.atoms.append(dataset_pb2.BondTopology.AtomType.ATOM_H)
-      h_idx = len(bond_topology.atoms) - 1
-      bond = bond_topology.bonds.add()
+      bond_topology.atom.append(dataset_pb2.BondTopology.AtomType.ATOM_H)
+      h_idx = len(bond_topology.atom) - 1
+      bond = bond_topology.bond.add()
       bond.atom_a = atom_idx
       bond.atom_b = h_idx
       bond.bond_type = dataset_pb2.BondTopology.BondType.BOND_SINGLE
@@ -636,6 +683,9 @@ def parse_bond_topology_line(line):
     atoms str (like 'N+O O O-')
     connectivity matrix str (e.g. '010110')
     hydrogen count str (e.g. '3000')
+
+  Raises:
+    ValueError: on unexpected line format
   """
   line = line.rstrip()
   num_atoms = int(line[0:2])
@@ -667,11 +717,29 @@ def generate_bond_topologies_from_csv(fileobj):
     # (just a string like 'CNNOO') so the [::2] skips those.
     bond_topology = create_bond_topology(atoms[::2], connectivity, hydrogens)
     bond_topology.smiles = smiles
-    bond_topology.bond_topology_id = int(bt_id)
+    bond_topology.topo_id = int(bt_id)
     yield bond_topology
 
 
-def bond_topology_to_molecule(bond_topology):
+def smiles_id_dict_from_csv(fileobj):
+  """Generates a dict of smiles to id from bond_topology.csv.
+
+  Args:
+    fileobj: file like object
+
+  Returns:
+    dict of smiles to bodn topology id
+  """
+  smiles_id_dict = {}
+  reader = csv.reader(iter(fileobj))
+  next(reader)  # skip the header line
+  for row in reader:
+    bt_id, _, _, _, _, smiles = row
+    smiles_id_dict[smiles] = int(bt_id)
+  return smiles_id_dict
+
+
+def bond_topology_to_rdkit_molecule(bond_topology):
   """Converts a bond topology proto to an RDKit molecule.
 
   Args:
@@ -681,14 +749,14 @@ def bond_topology_to_molecule(bond_topology):
     rdkit.Chem.rdchem.RWMol
   """
   mol = Chem.rdchem.RWMol()
-  for pb_atom_idx, pb_atom in enumerate(bond_topology.atoms):
+  for pb_atom_idx, pb_atom in enumerate(bond_topology.atom):
     symbol, charge = ATOM_TYPE_TO_RDKIT[pb_atom]
     atom = Chem.Atom(symbol)
     atom.SetFormalCharge(charge)
     atom_idx = mol.AddAtom(atom)
     assert atom_idx == pb_atom_idx
 
-  for pb_bond in bond_topology.bonds:
+  for pb_bond in bond_topology.bond:
     mol.AddBond(pb_bond.atom_a, pb_bond.atom_b,
                 BOND_TYPE_TO_RDKIT[pb_bond.bond_type])
 
@@ -706,78 +774,148 @@ def get_bond_type(bond_topology, atom_idx0, atom_idx1):
   Returns:
     dataset_pb2.BondTopology.BondType
   """
-  for bond in bond_topology.bonds:
+  for bond in bond_topology.bond:
     if ((bond.atom_a == atom_idx0 and bond.atom_b == atom_idx1) or
         (bond.atom_a == atom_idx1 and bond.atom_b == atom_idx0)):
       return bond.bond_type
   return dataset_pb2.BondTopology.BondType.BOND_UNDEFINED
 
 
-def conformer_to_molecules(conformer,
-                           include_initial_geometries=True,
-                           include_optimized_geometry=True,
-                           include_all_bond_topologies=True):
-  """Converts a Conformer to RDKit molecules.
+def bond_topology_sorting_key(bond_topology):
+  """Returns tuple to use as sorting key.
 
-  Because a Conformer can include multiple bond topologies and geometries,
+  We eventually decided to sort bond topologies not be our estimated
+  goodness of fit, but just from some simple parameters of the topology.
+  This function shoudl be passed to a key parameter of a sorting function.
+
+  Args:
+    bond_topology: dataset_pb2.BondTopology
+
+  Returns:
+    tuple
+  """
+  return (bond_topology.topo_id,
+          compact_adjacency_matrix_string(
+              compute_adjacency_matrix(bond_topology), '.'))
+
+
+# These are lower case so they can be used in a command line argument
+class WhichTopologies(enum.Enum):
+  """Enum of topology types."""
+  # All topologies
+  ALL = 1
+  # The topology used during geometry finding
+  STARTING = 3
+  # All topologies matching the bond length ranges used in SMU
+  DDT = 4
+  # All topologies maatching a covalent bond length criteria from Meng and Lewis
+  # (see dataset.proto for SourceType for details)
+  MLCR = 5
+  # All topologies maatching bond lengths from Cambridge Structural Database
+  # (see dataset.proto for SourceType for details)
+  CSD = 6
+
+
+def iterate_bond_topologies(molecule, which):
+  """Iterates over (possibly a subset of) bond topologies in a molecule.
+
+  Args:
+    molecule: dataset_pb2.Molecule
+    which: WhichTopologies  Yields index of topology, dataset_pb2.BondTopology
+
+  Yields:
+    int (index in bond_topo), Bond topology.
+  """
+  if which == WhichTopologies.ALL:
+    yield from enumerate(molecule.bond_topo)
+
+  if which == WhichTopologies.STARTING:
+    if (molecule.prop.calc.status >= 512 or molecule.duplicate_of > 0):
+      yield 0, molecule.bond_topo[0]
+    for bt_idx, bt in enumerate(molecule.bond_topo):
+      if (bt.is_starting_topology or
+          bt.info & dataset_pb2.BondTopology.SOURCE_STARTING):
+        yield bt_idx, bt
+
+  if which == WhichTopologies.DDT:
+    for bt_idx, bt in enumerate(molecule.bond_topo):
+      if not bt.info or bt.info & dataset_pb2.BondTopology.SOURCE_DDT:
+        yield bt_idx, bt
+
+  if which == WhichTopologies.MLCR:
+    for bt_idx, bt in enumerate(molecule.bond_topo):
+      if bt.info & dataset_pb2.BondTopology.SOURCE_MLCR:
+        yield bt_idx, bt
+
+  if which == WhichTopologies.CSD:
+    for bt_idx, bt in enumerate(molecule.bond_topo):
+      if bt.info & dataset_pb2.BondTopology.SOURCE_CSD:
+        yield bt_idx, bt
+
+
+def molecule_to_rdkit_molecules(molecule,
+                                include_initial_geometries=True,
+                                include_optimized_geometry=True,
+                                which_topologies=WhichTopologies.ALL):
+  """Converts a Molecule to RDKit molecules.
+
+  Because a Molecule can include multiple bond topologies and geometries,
   multiple RDKit molecule objects can be produced
 
   The name of the molcule will be (all on one line)
-  SMU <confid>
+  SMU <molid>
   bt=<bt_id>(<bt_idx>/<bt_count>)
   geom=[opt|init(<init_idx>/<init_count>)]
   where
-    confid: conformer_id
-    bt_id: bond_topology_id
-    bt_idx: index in bond_topologies
-    bt_count: size of bond_topologies
-    init_idx: index in initial_geometries
-    init_count: size of initial_geometries
+    molid: mol_id
+    bt_id: topo_id
+    bt_idx: index in bond_topo
+    bt_count: size of bond_topo
+    init_idx: index in ini_geo
+    init_count: size of ini_geo
 
   Args:
-    conformer: dataset_pb2.Conformer
-    include_initial_geometries: output molecule for each initial_geometries
+    molecule: dataset_pb2.Molecule
+    include_initial_geometries: output molecule for each ini_geo
     include_optimized_geometry: output molecule for optimized_geometry
-    include_all_bond_topologies: if False, use only the first entry of
-      bond_topologies. If True, output molecule for each bond_topologies.
+    which_topologies: WhichTopologies
 
   Yields:
     rdkit.Chem.rdchem.RWMol
   """
-  bt_count = len(conformer.bond_topologies)
-  if include_all_bond_topologies:
-    bts = conformer.bond_topologies
-  else:
-    bts = conformer.bond_topologies[0:1]
-  requested_bond_topologies = [(bt, f'{bt.bond_topology_id}({i}/{bt_count})')
-                               for i, bt in enumerate(bts, start=1)]
+  bt_count = len(molecule.bond_topo)
+  requested_bond_topo = [
+      (bt, f'{bt.topo_id}({i+1}/{bt_count})')
+      for i, bt in iterate_bond_topologies(molecule, which_topologies)
+  ]
 
   # requested_geometries will be a list of tuples of
   # (goemetry, label)
   # where label is a string describing the geometry
   requested_geometries = []
   if include_initial_geometries:
-    init_count = len(conformer.initial_geometries)
+    valid_init_geometries = [g for g in molecule.ini_geo if g.atompos]
+    init_count = len(valid_init_geometries)
     requested_geometries.extend([
         (geom, f'init({i}/{init_count})')
-        for i, geom in enumerate(conformer.initial_geometries, start=1)
+        for i, geom in enumerate(valid_init_geometries, start=1)
     ])
-  if include_optimized_geometry:
-    requested_geometries.append((conformer.optimized_geometry, 'opt'))
+  if include_optimized_geometry and molecule.opt_geo.atompos:
+    requested_geometries.append((molecule.opt_geo, 'opt'))
 
-  for bt, bt_label in requested_bond_topologies:
+  for bt, bt_label in requested_bond_topo:
     for geom, geom_label in requested_geometries:
 
-      mol = bond_topology_to_molecule(bt)
+      mol = bond_topology_to_rdkit_molecule(bt)
       mol.SetProp(
           '_Name',
-          f'SMU {conformer.conformer_id} bt={bt_label} geom={geom_label} fate={conformer.fate}'
+          f'SMU {molecule.mol_id}, RDKIT {bt.smiles}, bt {bt_label}, geom {geom_label}'
       )
 
       # Add in the coordinates
-      conf = Chem.Conformer(len(bt.atoms))
+      conf = Chem.Conformer(len(bt.atom))
       conf.Set3D(True)
-      for atom_idx, pos in enumerate(geom.atom_positions):
+      for atom_idx, pos in enumerate(geom.atompos):
         conf.SetAtomPosition(
             atom_idx,
             Geometry.Point3D(
@@ -806,13 +944,13 @@ def compute_smiles_for_bond_topology(bond_topology,
   Returns:
     string
   """
-  return compute_smiles_for_molecule(
-      bond_topology_to_molecule(bond_topology),
+  return compute_smiles_for_rdkit_molecule(
+      bond_topology_to_rdkit_molecule(bond_topology),
       include_hs,
       labeled_atoms=labeled_atoms)
 
 
-def compute_smiles_for_molecule(mol, include_hs, labeled_atoms=False):
+def compute_smiles_for_rdkit_molecule(mol, include_hs, labeled_atoms=False):
   """Calculate a canonical smiles for the given RDKit Molecule.
 
   Note that you probably should NOT have sanitized your RDKit molecule. The
@@ -853,6 +991,79 @@ def compute_smiles_for_molecule(mol, include_hs, labeled_atoms=False):
   if smiles == 'C12=C3C4=C1C4=C23':
     return 'C12=C3C1=C1C2=C31'
   return smiles
+
+
+def rdkit_atom_to_atom_type(atom):
+  """Atom to atom type.
+
+  Args:
+    atom: RDKit atom
+
+  Returns:
+    dataset_pb2.AtomType
+
+  Raises:
+    ValueError: on unrecognized atom type
+  """
+  if atom.GetAtomicNum() == 1:
+    return dataset_pb2.BondTopology.ATOM_H
+  if atom.GetAtomicNum() == 6:
+    return dataset_pb2.BondTopology.ATOM_C
+  if atom.GetAtomicNum() == 7:
+    if atom.GetFormalCharge() == 0:
+      return dataset_pb2.BondTopology.ATOM_N
+    else:
+      return dataset_pb2.BondTopology.ATOM_NPOS
+  if atom.GetAtomicNum() == 8:
+    if atom.GetFormalCharge() == 0:
+      return dataset_pb2.BondTopology.ATOM_O
+    else:
+      return dataset_pb2.BondTopology.ATOM_ONEG
+  if atom.GetAtomicNum() == 9:
+    return dataset_pb2.BondTopology.ATOM_F
+
+  raise ValueError(f'Unrecognized atom type {atom.GetAtomicNum()}')
+
+
+def rdkit_molecule_to_bond_topology(mol):
+  """Converts RDKit molecule to BondTopology.
+
+  Args:
+    mol: RDKit molecule
+
+  Returns:
+    dataset_pb2.BondTopology
+  """
+  bond_topology = dataset_pb2.BondTopology()
+  for atom in mol.GetAtoms():
+    bond_topology.atom.append(rdkit_atom_to_atom_type(atom))
+
+  for bond in mol.GetBonds():
+    bt_bond = dataset_pb2.BondTopology.Bond()
+    bt_bond.atom_a = bond.GetBeginAtom().GetIdx()
+    bt_bond.atom_b = bond.GetEndAtom().GetIdx()
+    bt_bond.bond_type = RDKIT_TO_BOND_TYPE[bond.GetBondType()]
+    bond_topology.bond.append(bt_bond)
+
+  return bond_topology
+
+
+def smiles_to_rdkit_molecule(smiles):
+  """Converts a smiles string to a BondTopology.
+
+  Uses RDKit, and because we avoid aromaticity, there's a little
+  subtlety in how that is done.
+
+  Args:
+    smiles: string
+
+  Returns:
+    RDKit molecule
+  """
+  mol = Chem.MolFromSmiles(smiles, sanitize=False)
+  Chem.SanitizeMol(mol, Chem.rdmolops.SanitizeFlags.SANITIZE_ADJUSTHS)
+  mol = Chem.AddHs(mol)
+  return mol
 
 
 class SmilesCompareResult(enum.Enum):
@@ -898,72 +1109,90 @@ def bond_topology_smiles_comparison(bond_topology):
     return SmilesCompareResult.MISMATCH, smiles_with_h, smiles_without_h
 
 
-class _ConformerSource(enum.Enum):
+class _MoleculeSource(enum.Enum):
   DUPLICATE = 0
   STAGE1 = 1
   STAGE2 = 2
 
 
-def _conformer_source(conf):
-  """Determines source of given conformer."""
-  if not conf.HasField('properties'):
-    if conf.duplicated_by == 0 and not conf.duplicate_of:
+def _molecule_source(mol):
+  """Determines source of given molecule."""
+  if not mol.HasField('prop'):
+    if mol.duplicate_of == 0 and not mol.duplicate_found:
       raise ValueError(
-          'Unknown conformer source, no properties or duplicates: ' + str(conf))
-    return _ConformerSource.DUPLICATE
-  # Kind of a dumb hack, but the easiest thing to look for to distinguish stage1
-  # and stage 2 is that stage 1 only has timings for two computation steps.
-  if len(conf.properties.calculation_statistics) == 2:
-    return _ConformerSource.STAGE1
-  return _ConformerSource.STAGE2
+          'Unknown molecule source, no properties or duplicates: ' + str(mol))
+    return _MoleculeSource.DUPLICATE
+  # We want this function to work for both internal pipeline and to be able to
+  # call this with our final completed records. Unfortunatley, it's a little
+  # hacky to tell the difference cleanly.
+
+  # calculation_statistics is an internal only field, but it's it's present and
+  # and has the right size (stage1 only has 2 computation steps),
+  # it's got to be a stage 1 file.
+  if len(mol.prop.calculation_statistics) == 2:
+    return _MoleculeSource.STAGE1
+  # If we are looking at a standard record from the end of the pipeline,
+  # it won't have the errors field at all.
+  if not mol.prop.HasField('calc'):
+    return _MoleculeSource.STAGE2
+
+  # If we have a complete record at the end of the pipeline, status will have a
+  # value. Now you may note that we can't tell the difference between a missing
+  # status value and a value of 0, but we lucked out that status 0 is always
+  # stage 2.
+  if not mol.prop.calculation_statistics and (mol.prop.calc.status < 0 or
+                                              mol.prop.calc.status >= 512):
+    return _MoleculeSource.STAGE1
+
+  return _MoleculeSource.STAGE2
 
 
-# A list of fields that will be returned by merge_conformer on a conflict.
-# The fields for the STAGE1 conformer are first, then fields for the STAGE2
-# conformer.
+# A list of fields that will be returned by merge_molecule on a conflict.
+# The fields for the STAGE1 molecule are first, then fields for the STAGE2
+# molecule.
 MERGE_CONFLICT_FIELDS = [
-    'conformer_id',
+    'mol_id',
     'error_nstat1',
     'error_nstatc',
     'error_nstatv',
     'error_nstatt',
     'initial_geometry_energy_1',
     'initial_geometry_gradient_norm_1',
-    'optimized_geometry_energy_1',
-    'optimized_geometry_gradient_norm_1',
+    'opt_geo_energy_1',
+    'opt_geo_gradient_norm_1',
     'has_initial_geometry_1',
-    'has_optimized_geometry_1',
+    'has_opt_geo_1',
     'initial_geometry_energy_2',
     'initial_geometry_gradient_norm_2',
-    'optimized_geometry_energy_2',
-    'optimized_geometry_gradient_norm_2',
+    'opt_geo_energy_2',
+    'opt_geo_gradient_norm_2',
     'has_initial_geometry_2',
-    'has_optimized_geometry_2',
+    'has_opt_geo_2',
 ]
 
 
-def merge_conformer(conf1, conf2):
-  """Tries to merge information from two conformers.
+def merge_molecule(mol1, mol2):
+  """Tries to merge information from two molecules.
 
-  During the pipeline, we have partial information about conformers that we
+  During the pipeline, we have partial information about molecules that we
   need to merge. This is the workhorse function for merging these.
 
-  Only conformers with the same conformer_id should be merged.
+  Only molecules with the same mol_id should be merged.
 
-  The key concept is to identify a source of each conformer:
+  The key concept is to identify a source of each molecule:
   * STAGE2: From end of pipeline, with mostly complete info
   * STAGE1: From after geometry optimization. Except for duplicate information
     which may have been merged, mostly contains duplicate information to
     STAGE2. However, in some cases it's expected that stage2 will differ
     because of reruns in STAGE2.
-  * DUPLICATE: An almost bare conformer with just duplicated_by and/or
-    duplicate_of fields
+  * DUPLICATE: An almost bare molecule with just duplicate_of and/or
+    duplicate_found fields
 
   May modify one of the inputs.
 
   Note that this is not the most general merge that the format suggests. In
-  particular, it's expected that there is at most 1 initial_geometries and
-  1 bond_topologies (and it's the same for all conformers). The final data won't
+  particular, it's expected that there is at most 1 ini_geo and
+  1 bond_topo (and it's the same for all molecules). The final data won't
   be like this but it handles what's in the pipeline at this point we use this.
 
   While merging STAGE1 and STAGE2, conflicting values of some fields may be
@@ -975,93 +1204,106 @@ def merge_conformer(conf1, conf2):
   differences is found.
 
   Args:
-    conf1: dataset_pb2.Conformer
-    conf2: dataset_pb2.Conformer
+    mol1: dataset_pb2.Molecule
+    mol2: dataset_pb2.Molecule
 
   Returns:
-    dataset_pb2.Conformer, None or list of field values (see above)
+    dataset_pb2.Molecule, None or list of field values (see above)
 
   Raises:
-    ValueError: if len(initial_geometries) != 1, len(bond_topologies) != 1,
-      bond_topologies differ, or incompatible duplicated_by fields
+    ValueError: if len(ini_geo) != 1, len(bond_topo) != 1,
+      bond_topo differ, or incompatible duplicate_of fields
   """
-  source1 = _conformer_source(conf1)
-  source2 = _conformer_source(conf2)
+  source1 = _molecule_source(mol1)
+  source2 = _molecule_source(mol2)
 
   if source1 == source2:
-    if source1 == _ConformerSource.STAGE1 or source1 == _ConformerSource.STAGE2:
+    if source1 == _MoleculeSource.STAGE1 or source1 == _MoleculeSource.STAGE2:
       raise ValueError(
-          'Can not merge two conformers of source {}'.format(source1))
-    conf1.MergeFrom(conf2)
-    return conf1, None
+          'Can not merge two molecules of source {}'.format(source1))
+    mol1.MergeFrom(mol2)
+    return mol1, None
 
   if source2.value < source1.value:
-    conf1, conf2 = conf2, conf1
+    mol1, mol2 = mol2, mol1
     source1, source2 = source2, source1
 
-  if len(conf1.initial_geometries) > 1:
-    raise ValueError('At most 1 initial_geometries allowed, got {}'.format(
-        len(conf1.initial_geometries)))
-  if len(conf2.initial_geometries) > 1:
-    raise ValueError('At most 1 initial_geometries allowed, got {}'.format(
-        len(conf2.initial_geometries)))
+  if len(mol1.ini_geo) > 1:
+    raise ValueError('At most 1 ini_geo allowed, got {}'.format(
+        len(mol1.ini_geo)))
+  if len(mol2.ini_geo) > 1:
+    raise ValueError('At most 1 ini_geo allowed, got {}'.format(
+        len(mol2.ini_geo)))
 
-  if len(conf1.bond_topologies) > 1:
-    raise ValueError('At most 1 bond_topologies allowed, got {}'.format(
-        len(conf1.initial_geometries)))
-  if len(conf2.bond_topologies) > 1:
-    raise ValueError('At most 1 bond_topologies allowed, got {}'.format(
-        len(conf2.initial_geometries)))
+  if len(mol1.bond_topo) > 1:
+    raise ValueError('At most 1 bond_topo allowed, got {}'.format(
+        len(mol1.ini_geo)))
+  if len(mol2.bond_topo) > 1:
+    raise ValueError('At most 1 bond_topo allowed, got {}'.format(
+        len(mol2.ini_geo)))
 
-  if conf1.bond_topologies and conf2.bond_topologies:
-    if conf1.bond_topologies[0] != conf2.bond_topologies[0]:
+  if mol1.bond_topo and mol2.bond_topo:
+    if mol1.bond_topo[0] != mol2.bond_topo[0]:
       raise ValueError(
           'All bond topologies must be the same, got ids {} and {}'.format(
-              conf1.bond_topologies[0].bond_topology_id,
-              conf2.bond_topologies[0].bond_topology_id))
+              mol1.bond_topo[0].topo_id, mol2.bond_topo[0].topo_id))
 
   # We set the conflict info here because we'll be messing around with fields
   # below. We may not need this if we don't actually find a conflict.
-  conflict_info = [conf1.conformer_id]
-  conflict_info.append(conf1.properties.errors.error_nstat1)
-  conflict_info.append(conf1.properties.errors.error_nstatc)
-  conflict_info.append(conf1.properties.errors.error_frequencies)  # nstatv
-  conflict_info.append(conf1.properties.errors.error_nstatt)
-  for c in [conf1, conf2]:
-    conflict_info.append(c.properties.initial_geometry_energy.value)
-    conflict_info.append(c.properties.initial_geometry_gradient_norm.value)
-    conflict_info.append(c.properties.optimized_geometry_energy.value)
-    conflict_info.append(c.properties.optimized_geometry_gradient_norm.value)
-    conflict_info.append(bool(c.initial_geometries))
-    conflict_info.append(c.HasField('optimized_geometry'))
+  conflict_info = [mol1.mol_id]
+  conflict_info.append(mol1.prop.calc.error_nstat1)
+  conflict_info.append(mol1.prop.calc.error_nstatc)
+  conflict_info.append(mol1.prop.calc.error_frequencies)  # nstatv
+  conflict_info.append(mol1.prop.calc.error_nstatt)
+  for c in [mol1, mol2]:
+    if c.ini_geo:
+      conflict_info.append(c.ini_geo[0].energy.val)
+      conflict_info.append(c.ini_geo[0].gnorm.val)
+    else:
+      conflict_info.extend([0.0, 0.0])
+    conflict_info.append(c.opt_geo.energy.val)
+    conflict_info.append(c.opt_geo.gnorm.val)
+    conflict_info.append(bool(c.ini_geo) and bool(c.ini_geo[0].atompos))
+    conflict_info.append(bool(len(c.opt_geo.atompos)))
 
   # The stage1 (in source1) and stage2 (in source2) is the only non-trivial
   # merge. We look for conflicts between them and then a few special cases.
   has_conflict = False
-  if source1 == _ConformerSource.STAGE1 and source2 == _ConformerSource.STAGE2:
-    if len(conf1.bond_topologies) != 1 or len(conf2.bond_topologies) != 1:
+  if source1 == _MoleculeSource.STAGE1 and source2 == _MoleculeSource.STAGE2:
+    if len(mol1.bond_topo) != 1 or len(mol2.bond_topo) != 1:
       has_conflict = True
 
-    if len(conf1.initial_geometries) != len(conf2.initial_geometries):
+    if len(mol1.ini_geo) != len(mol2.ini_geo):
       has_conflict = True
-    if (conf1.HasField('optimized_geometry') !=
-        conf2.HasField('optimized_geometry')):
+    elif len(mol1.ini_geo) == 1:
+      if len(mol1.ini_geo[0].atompos) != len(mol2.ini_geo[0].atompos):
+        has_conflict = True
+
+    if mol1.HasField('opt_geo') != mol2.HasField('opt_geo'):
+      has_conflict = True
+
+    if len(mol1.opt_geo.atompos) != len(mol2.opt_geo.atompos):
       has_conflict = True
 
     for field in STAGE1_ERROR_FIELDS:
       # Only stage1 uses these old style error fields, so we just copy them
       # over
-      setattr(conf2.properties.errors, field,
-              getattr(conf1.properties.errors, field))
+      setattr(mol2.prop.calc, field, getattr(mol1.prop.calc, field))
 
-    for field, atol in [
-        ('initial_geometry_energy', 2e-6),
-        ('initial_geometry_gradient_norm', 1e-6),
-        ('optimized_geometry_energy', 2e-6),
-        ('optimized_geometry_gradient_norm', 1e-6),
+    for field_fn, atol in [
+        (lambda c: c.ini_geo[0].energy, 2e-6),
+        (lambda c: c.ini_geo[0].gnorm, 1e-6),
+        (lambda c: c.opt_geo.energy, 2e-6),
+        (lambda c: c.opt_geo.gnorm, 1e-6),
     ]:
-      val1 = getattr(conf1.properties, field).value
-      val2 = getattr(conf2.properties, field).value
+      try:
+        val1 = field_fn(mol1).val
+      except IndexError:
+        val1 = 0.0
+      try:
+        val2 = field_fn(mol2).val
+      except IndexError:
+        val2 = 0.0
       # In some cases, stage2 files have -1 for these fields where stage1
       # doesn't. At some point, stricter error checking was done such that
       # nonsense values were not put into the .dat. So if stage2 has a -1, we
@@ -1072,14 +1314,13 @@ def merge_conformer(conf1, conf2):
 
     # This isn't actually a conflict per-se, but we want to find anything that
     # is not an allowed set of combinations of error values.
-    error_codes = (conf1.properties.errors.error_nstat1,
-                   conf1.properties.errors.error_nstatc,
-                   conf1.properties.errors.error_frequencies,
-                   conf1.properties.errors.error_nstatt)
-    if conf1.properties.errors.error_frequencies == 101:
+    error_codes = (mol1.prop.calc.error_nstat1, mol1.prop.calc.error_nstatc,
+                   mol1.prop.calc.error_frequencies,
+                   mol1.prop.calc.error_nstatt)
+    if mol1.prop.calc.error_frequencies == 101:
       # This happens for exactly one molecule. If anything else shows up
       # here we will mark it as a conflict so it comes out in that output
-      if conf2.conformer_id != 795795001:
+      if mol2.mol_id != 795795001:
         has_conflict = True
     elif error_codes not in [(1, 1, 1, 1), (3, 1, 1, 1), (2, 3, 2, 1),
                              (5, 1, 3, 1), (1, 1, 101, 1)]:
@@ -1087,337 +1328,342 @@ def merge_conformer(conf1, conf2):
 
     # After all of that, we always take the stage1 initial energy,
     # gradient norm, and positions.
-    conf2.properties.initial_geometry_energy.value = (
-        conf1.properties.initial_geometry_energy.value)
-    conf2.properties.initial_geometry_gradient_norm.value = (
-        conf1.properties.initial_geometry_gradient_norm.value)
-    conf2.initial_geometries[0].CopyFrom(conf1.initial_geometries[0])
+    if mol2.ini_geo:
+      mol2.ini_geo[0].CopyFrom(mol1.ini_geo[0])
+    else:
+      mol2.ini_geo.append(mol1.ini_geo[0])
 
     # The 800 and 700 are special cases where we want to take the stage1 data
-    if (conf2.properties.errors.status == 800 or
-        conf2.properties.errors.status == 700):
+    if (mol2.prop.calc.status == 800 or mol2.prop.calc.status == 700):
       # Flip back because we will base everything on the stage1 file
-      conf1, conf2 = conf2, conf1
+      mol1, mol2 = mol2, mol1
       source1, source2 = source2, source1
 
-      conf2.properties.errors.status = (500 +
-                                        conf1.properties.errors.status // 10)
-      conf2.which_database = dataset_pb2.COMPLETE
-      if np.any(np.asarray(conf2.properties.harmonic_frequencies.value) < -30):
-        conf2.properties.errors.warn_vib_imaginary = 2
-      elif np.any(np.asarray(conf2.properties.harmonic_frequencies.value) < 0):
-        conf2.properties.errors.warn_vib_imaginary = 1
+      mol2.prop.calc.status = (500 + mol1.prop.calc.status // 10)
+      mol2.prop.calc.which_database = dataset_pb2.COMPLETE
+      if np.any(np.asarray(mol2.prop.vib_freq.val) < -30):
+        mol2.prop.calc.warn_vib_imag = 2
+      elif np.any(np.asarray(mol2.prop.vib_freq.val) < 0):
+        mol2.prop.calc.warn_vib_imag = 1
 
   # Move over all duplicate info.
-  if (conf1.duplicated_by != 0 and conf2.duplicated_by != 0 and
-      conf1.duplicated_by != conf2.duplicated_by):
-    raise ValueError('Incompatible duplicated_by {} {}'.format(
-        conf1.duplicated_by, conf2.duplicated_by))
+  if (mol1.duplicate_of != 0 and mol2.duplicate_of != 0 and
+      mol1.duplicate_of != mol2.duplicate_of):
+    raise ValueError('Incompatible duplicate_of {} {}'.format(
+        mol1.duplicate_of, mol2.duplicate_of))
   # max is just to get the non-zero one
-  conf2.duplicated_by = max(conf1.duplicated_by, conf2.duplicated_by)
-  conf2.duplicate_of.extend(conf1.duplicate_of)
+  mol2.duplicate_of = max(mol1.duplicate_of, mol2.duplicate_of)
+  mol2.duplicate_found.extend(mol1.duplicate_found)
 
   if not has_conflict:
-    return conf2, None
+    return mol2, None
 
-  return conf2, conflict_info
+  return mol2, conflict_info
 
 
-def conformer_calculation_error_level(conformer):
-  """Returns whether status codes indicate this conformer had serious errors.
+def molecule_calculation_error_level(molecule):
+  """Returns whether status codes indicate this molecule had serious errors.
 
   Args:
-    conformer: dataset_pb2.Conformer
+    molecule: dataset_pb2.Molecule
 
   Returns:
     integer, higher values are more srious errors
-      5: serious problems
-      4: major problems
-      3: moderate problems
-      2: minor problems, serious warning
-      1: minor problems, vibrational analysis warning
-      0: minor or no problem
+      8: serious problems
+      7: major problems
+      6: moderate problems
+      5: cations problems, minor problems, serious warning
+      4: cations problems, minor problems, vibrational analysis warning
+      3: cations problems, otherwise sucess
+      2: cations success, minor problems, serious warning
+      1: cations success, minor problems, vibrational analysis warning
+      0: cations success, no problems
   """
-  source = _conformer_source(conformer)
-  errors = conformer.properties.errors
+  source = _molecule_source(molecule)
+  errors = molecule.prop.calc
 
   # The levels aren't very well defined for STAGE1.
   # We'll call all errors serious
-  if source == _ConformerSource.STAGE1:
+  if source == _MoleculeSource.STAGE1:
     if errors.error_nstat1 != 1 and errors.error_nstat1 != 3:
-      return 5
+      return 8
 
     if (errors.error_nstatc != 1 or errors.error_nstatt != 1 or
         errors.error_frequencies != 1):
-      return 5
+      return 8
 
     return 0
 
   # Now logic for stage2 files.
   if errors.status >= 64:
-    return 5
+    return 8
   elif errors.status >= 8:
-    return 4
+    return 7
   elif errors.status >= 4:
-    return 3
+    return 6
 
   # This is warning level 'C' from Bazel documentation.
-  if (errors.warn_t1 > 1 or errors.warn_t1_excess > 1 or
-      errors.warn_bse_b5_b6 > 1 or errors.warn_bse_cccsd_b5 > 1 or
-      errors.warn_exc_lowest_excitation > 1 or
-      errors.warn_exc_smallest_oscillator > 0 or
-      errors.warn_exc_largest_oscillator > 0):
-    return 2
-
+  if (errors.warn_t1 > 1 or errors.warn_delta_t1 > 1 or
+      errors.warn_bse_b6 > 1 or errors.warn_bse_eccsd > 1 or
+      errors.warn_exc_ene > 1 or errors.warn_exc_osmin > 0 or
+      errors.warn_exc_osmax > 0):
+    warn_offset = 2
   # This is warning level 'B" from Bazel documentation.
-  if (errors.warn_vib_linearity > 0 or errors.warn_vib_imaginary > 1):
-    return 1
+  elif (errors.warn_vib_linear > 0 or errors.warn_vib_imag > 1):
+    warn_offset = 1
+  else:
+    warn_offset = 0
 
-  return 0
+  if errors.status == 0:
+    return warn_offset
+  else:
+    return 3 + warn_offset
 
 
-def filter_conformer_by_availability(conformer, allowed):
-  """Filters fields of Conformer by availability annotations.
+def filter_molecule_by_availability(molecule, allowed):
+  """Filters fields of Molecule by availability annotations.
 
-  *Modifies* the input conformer.
+  *Modifies* the input molecule.
 
   Args:
-    conformer: dataset_pb2.Conformer
+    molecule: dataset_pb2.Molecule
     allowed: list of AvailabilityEnum
   """
-  # A bit of a hack because original_conformer_index is the only field we
-  # filter in the conformer not in the properties subfield.
+  # A bit of a hack because original_molecule_index is the only field we
+  # filter in the molecule not in the properties subfield.
   if dataset_pb2.INTERNAL_ONLY not in allowed:
-    conformer.ClearField('original_conformer_index')
-  for descriptor, _ in conformer.properties.ListFields():
+    molecule.ClearField('original_molecule_index')
+  for descriptor, _ in molecule.prop.ListFields():
     if (descriptor.GetOptions().Extensions[dataset_pb2.availability]
         not in allowed):
-      conformer.properties.ClearField(descriptor.name)
+      molecule.prop.ClearField(descriptor.name)
+  for geometry in itertools.chain([molecule.opt_geo], molecule.ini_geo):
+    for descriptor, _ in geometry.ListFields():
+      if descriptor.name == 'atompos':
+        # We never filter atom positions and we can't call ClearField on it
+        continue
+      if (descriptor.GetOptions().Extensions[dataset_pb2.availability]
+          not in allowed):
+        geometry.ClearField(descriptor.name)
 
 
-def should_include_in_standard(conformer):
-  """Returns whether this conformer should be included in the Standard form.
+def should_include_in_standard(molecule):
+  """Returns whether this molecule should be included in the Standard form.
 
   Args:
-    conformer: dataset_pb2.Conformer
+    molecule: dataset_pb2.Molecule
 
   Returns:
     boolean
   """
-  if conformer.duplicated_by > 0:
+  if molecule.duplicate_of > 0:
     return False
-  if conformer.which_database == dataset_pb2.COMPLETE:
+  if molecule.prop.calc.which_database == dataset_pb2.COMPLETE:
     return False
-  elif conformer.which_database == dataset_pb2.STANDARD:
+  elif molecule.prop.calc.which_database == dataset_pb2.STANDARD:
     return True
   else:
     # This should only happen with stage1 only files.
-    if conformer_calculation_error_level(conformer) > 0:
+    if molecule_calculation_error_level(molecule) > 0:
       return False
     else:
       return True
 
 
-def conformer_to_standard(conformer):
-  """Converts a Conformer from internal to 'Standard' form.
+def molecule_to_standard(molecule):
+  """Converts a Molecule from internal to 'Standard' form.
 
   The "Complete" dataset has all information that anyone could reasonably use.
   The "Standard" dataset is a reduced form with information that we trust and
   various simplifications.
 
-  *Modifies* the input conformer.
+  *Modifies* the input molecule.
 
   Args:
-    conformer: dataset_pb2.Conformer
+    molecule: dataset_pb2.Molecule
 
   Returns:
-    dataset_pb2.Conformer or None (meaning that this conformer should be
+    dataset_pb2.Molecule or None (meaning that this molecule should be
       filtered)
   """
-  if not should_include_in_standard(conformer):
+  if not should_include_in_standard(molecule):
     return None
 
-  filter_conformer_by_availability(conformer, [dataset_pb2.STANDARD])
+  filter_molecule_by_availability(molecule, [dataset_pb2.STANDARD])
 
-  return conformer
+  return molecule
 
 
-def clean_up_error_codes(conformer):
+def clean_up_error_codes(molecule):
   """Cleans up error codes for the final dataset.
 
   Two major types of thigns need to be changed.
-  * For stage1 only conformers, the new status code needs to be set
-  * For stage2 conformers, the old style error codes need to be cleared.
+  * For stage1 only molecules, the new status code needs to be set
+  * For stage2 molecules, the old style error codes need to be cleared.
 
-  Modifies the input conformer
+  Modifies the input molecule
 
   Args:
-    conformer: dataset_pb2.Conformer
+    molecule: dataset_pb2.Molecule
+
+  Raises:
+    ValueError: on unexpected molecule format
   """
-  source = _conformer_source(conformer)
-  if source == _ConformerSource.STAGE1:
-    if conformer.properties.errors.status:
-      # This is a special case where the stage1 conformer was already put
+  source = _molecule_source(molecule)
+  if source == _MoleculeSource.STAGE1:
+    if molecule.prop.calc.status:
+      # This is a special case where the stage1 molecule was already put
       # together as a final entry during the merging process. Everything
       # has already been set up.
       pass
-    elif (conformer.properties.errors.error_nstat1 == 1 or
-          conformer.properties.errors.error_nstat1 == 3):
+    elif (molecule.prop.calc.error_nstat1 == 1 or
+          molecule.prop.calc.error_nstat1 == 3):
       # This should be a duplciate. If we have no record of a dup, we'll
       # leaves is as stauts 0 and let it be caught by fate below
-      if conformer.duplicated_by:
-        conformer.properties.errors.status = -1
-    elif conformer.properties.errors.error_nstat1 == 5:
+      if molecule.duplicate_of:
+        molecule.prop.calc.status = -1
+    elif molecule.prop.calc.error_nstat1 == 5:
       # optimization was successful, but optimized to different topology
-      conformer.properties.errors.status = 590
-    elif conformer.properties.errors.error_nstat1 == 2:
+      molecule.prop.calc.status = 590
+    elif molecule.prop.calc.error_nstat1 == 2:
       # optimization failed. Clean up the error codes and remove some info
-      conformer.properties.errors.status = 600
-      conformer.properties.ClearField('initial_geometry_energy')
-      conformer.properties.ClearField('initial_geometry_gradient_norm')
-      conformer.properties.ClearField('optimized_geometry_energy')
-      conformer.properties.ClearField('optimized_geometry_gradient_norm')
-      conformer.ClearField('optimized_geometry')
+      molecule.prop.calc.status = 600
+      molecule.ini_geo[0].ClearField('energy')
+      molecule.ini_geo[0].ClearField('gnorm')
+      molecule.ClearField('opt_geo')
 
     # If something isn't caught there, we'll let it go through with
     # status still unset. This will be categorized later in determine_fate
-  elif source == _ConformerSource.STAGE2:
+  elif source == _MoleculeSource.STAGE2:
     pass
   else:
     raise ValueError(
-        f'Clean up can only handle Stage1 or 2 conformers, got {conformer}')
+        f'Clean up can only handle Stage1 or 2 molecules, got {molecule}')
 
   for field in STAGE1_ERROR_FIELDS:
-    conformer.properties.errors.ClearField(field)
+    molecule.prop.calc.ClearField(field)
 
 
-_SENTINEL_VALUE_FIELDS = [
-    'initial_geometry_energy',
-    'initial_geometry_gradient_norm',
-    'optimized_geometry_energy',
-    'optimized_geometry_gradient_norm',
-]
-
-
-def clean_up_sentinel_values(conformer):
+def clean_up_sentinel_values(molecule):
   """Removes some snetinel values, relying on empty protobuf fields to indicate absence.
 
-  Modifies the conformer
+  Modifies the molecule
 
   Args:
-    conformer: dataset_pb2.Conformer
+    molecule: dataset_pb2.Molecule
   """
-  for field in _SENTINEL_VALUE_FIELDS:
-    if getattr(conformer.properties, field).value == -1.0:
-      conformer.properties.ClearField(field)
+  for geometry in itertools.chain([molecule.opt_geo], molecule.ini_geo):
+    for field in ['energy', 'gnorm']:
+      if getattr(geometry, field).val == -1.0:
+        geometry.ClearField(field)
 
 
 _ZERO_FIELD_CHECK_SCALAR = [
-    'single_point_energy_atomic_b5',
-    'single_point_energy_atomic_b6',
-    'single_point_energy_b3lyp_6_31ppgdp',
-    'single_point_energy_b3lyp_aug_pcs_1',
-    'single_point_energy_cc2_tzvp',
-    'single_point_energy_ccsd_2sd',
-    'single_point_energy_ccsd_2sp',
-    'single_point_energy_ccsd_3psd',
-    'single_point_energy_ccsd_t_2sd',
-    'single_point_energy_ccsd_t_2sp',
-    'single_point_energy_eccsd',
-    'single_point_energy_hf_2sd',
-    'single_point_energy_hf_2sp',
-    'single_point_energy_hf_3',
-    'single_point_energy_hf_34',
-    'single_point_energy_hf_3psd',
-    'single_point_energy_hf_4',
-    'single_point_energy_hf_6_31gd',
-    'single_point_energy_hf_cvtz',
-    'single_point_energy_hf_tzvp',
-    'single_point_energy_mp2_2sd',
-    'single_point_energy_mp2_2sp',
-    'single_point_energy_mp2_3',
-    'single_point_energy_mp2_34',
-    'single_point_energy_mp2_3psd',
-    'single_point_energy_mp2_4',
-    'single_point_energy_mp2_tzvp',
-    'single_point_energy_mp2ful_cvtz',
-    'single_point_energy_pbe0_6_311gd',
-    'single_point_energy_pbe0_6_311gd_cat',
-    'single_point_energy_pbe0_6_311gd_cat_mrcc',
-    'single_point_energy_pbe0_6_311gd_cat_orca',
-    'single_point_energy_pbe0_6_311gd_mrcc',
-    'single_point_energy_pbe0_6_311gd_orca',
-    'single_point_energy_pbe0_6_31ppgdp',
-    'single_point_energy_pbe0_aug_pc_1',
-    'single_point_energy_pbe0_aug_pcs_1',
-    'single_point_energy_pbe0d3_6_311gd',
-    'homo_b3lyp_6_31ppgdp',
-    'homo_b3lyp_aug_pcs_1',
-    'homo_hf_3',
-    'homo_hf_4',
-    'homo_hf_6_31gd',
-    'homo_hf_cvtz',
-    'homo_hf_tzvp',
-    'homo_pbe0_6_311gd',
-    'homo_pbe0_6_31ppgdp',
-    'homo_pbe0_aug_pc_1',
-    'homo_pbe0_aug_pcs_1',
-    'lumo_b3lyp_6_31ppgdp',
-    'lumo_b3lyp_aug_pcs_1',
-    'lumo_hf_3',
-    'lumo_hf_4',
-    'lumo_hf_6_31gd',
-    'lumo_hf_cvtz',
-    'lumo_hf_tzvp',
-    'lumo_pbe0_6_311gd',
-    'lumo_pbe0_6_31ppgdp',
-    'lumo_pbe0_aug_pc_1',
-    'lumo_pbe0_aug_pcs_1',
-    'atomization_energy_excluding_zpe_atomic_b5',
-    'atomization_energy_excluding_zpe_atomic_b5_um',
-    'atomization_energy_excluding_zpe_atomic_b6',
-    'atomization_energy_excluding_zpe_atomic_b6_um',
-    'atomization_energy_excluding_zpe_eccsd',
-    'atomization_energy_excluding_zpe_eccsd_um',
-    'atomization_energy_including_zpe_atomic_b5',
-    'atomization_energy_including_zpe_atomic_b5_um',
-    'atomization_energy_including_zpe_atomic_b6',
-    'atomization_energy_including_zpe_atomic_b6_um',
-    'atomization_energy_including_zpe_eccsd',
-    'atomization_energy_including_zpe_eccsd_um',
-    'enthalpy_of_formation_0k_atomic_b5',
-    'enthalpy_of_formation_0k_atomic_b5_um',
-    'enthalpy_of_formation_0k_atomic_b6',
-    'enthalpy_of_formation_0k_atomic_b6_um',
-    'enthalpy_of_formation_0k_eccsd',
-    'enthalpy_of_formation_0k_eccsd_um',
-    'enthalpy_of_formation_298k_atomic_b5',
-    'enthalpy_of_formation_298k_atomic_b5_um',
-    'enthalpy_of_formation_298k_atomic_b6',
-    'enthalpy_of_formation_298k_atomic_b6_um',
-    'enthalpy_of_formation_298k_eccsd',
-    'enthalpy_of_formation_298k_eccsd_um',
+    'spe_comp_b5',
+    'spe_comp_b6',
+    'spe_std_b3lyp_631ppgdp',
+    'spe_std_b3lyp_augpcs1',
+    'spe_std_cc2_tzvp',
+    'spe_std_ccsd_2sd',
+    'spe_std_ccsd_2sp',
+    'spe_std_ccsd_3psd',
+    'spe_std_ccsd_t_2sd',
+    'spe_std_ccsd_t_2sp',
+    'spe_comp_eccsd',
+    'spe_std_hf_2sd',
+    'spe_std_hf_2sp',
+    'spe_std_hf_3',
+    'spe_std_hf_34',
+    'spe_std_hf_3psd',
+    'spe_std_hf_4',
+    'spe_std_hf_631gd',
+    'spe_std_hf_cvtz',
+    'spe_std_hf_tzvp',
+    'spe_std_mp2_2sd',
+    'spe_std_mp2_2sp',
+    'spe_std_mp2_3',
+    'spe_std_mp2_34',
+    'spe_std_mp2_3psd',
+    'spe_std_mp2_4',
+    'spe_std_mp2_tzvp',
+    'spe_std_mp2full_cvtz',
+    'spe_check_pbe0_6311gd_tmol',
+    'spe_stdcat_pbe0_6311gd_tmol',
+    'spe_stdcat_pbe0_6311gd_mrcc',
+    'spe_stdcat_pbe0_6311gd_orca',
+    'spe_check_pbe0_6311gd_mrcc',
+    'spe_check_pbe0_6311gd_orca',
+    'spe_std_pbe0_631ppgdp',
+    'spe_std_pbe0_augpc1',
+    'spe_std_pbe0_augpcs1',
+    'spe_std_pbe0d3_6311gd',
+    'orb_ehomo_b3lyp_631ppgdp',
+    'orb_ehomo_b3lyp_augpcs1',
+    'orb_ehomo_hf_3',
+    'orb_ehomo_hf_4',
+    'orb_ehomo_hf_631gd',
+    'orb_ehomo_hf_cvtz',
+    'orb_ehomo_hf_tzvp',
+    'orb_ehomo_pbe0_6311gd',
+    'orb_ehomo_pbe0_631ppgdp',
+    'orb_ehomo_pbe0_augpc1',
+    'orb_ehomo_pbe0_augpcs1',
+    'orb_elumo_b3lyp_631ppgdp',
+    'orb_elumo_b3lyp_augpcs1',
+    'orb_elumo_hf_3',
+    'orb_elumo_hf_4',
+    'orb_elumo_hf_631gd',
+    'orb_elumo_hf_cvtz',
+    'orb_elumo_hf_tzvp',
+    'orb_elumo_pbe0_6311gd',
+    'orb_elumo_pbe0_631ppgdp',
+    'orb_elumo_pbe0_augpc1',
+    'orb_elumo_pbe0_augpcs1',
+    'at2_std_b5_eae',
+    'at2_um_b5_eae',
+    'at2_std_b6_eae',
+    'at2_um_b6_eae',
+    'at2_std_eccsd_eae',
+    'at2_um_eccsd_eae',
+    'at2_std_b5_ea0',
+    'at2_um_b5_ea0',
+    'at2_std_b6_ea0',
+    'at2_um_b6_ea0',
+    'at2_std_eccsd_ea0',
+    'at2_um_eccsd_ea0',
+    'at2_std_b5_hf0',
+    'at2_um_b5_hf0',
+    'at2_std_b6_hf0',
+    'at2_um_b6_hf0',
+    'at2_std_eccsd_hf0',
+    'at2_um_eccsd_hf0',
+    'at2_std_b5_hf298',
+    'at2_um_b5_hf298',
+    'at2_std_b6_hf298',
+    'at2_um_b6_hf298',
+    'at2_std_eccsd_hf298',
+    'at2_um_eccsd_hf298',
 ]
 
 _ZERO_FIELD_CHECK_ATOMIC = [
-    'nmr_isotropic_shielding_b3lyp_6_31ppgdp',
-    'nmr_isotropic_shielding_b3lyp_aug_pcs_1',
-    'nmr_isotropic_shielding_pbe0_6_31ppgdp',
-    'nmr_isotropic_shielding_pbe0_aug_pcs_1',
-    'partial_charges_esp_fit_hf_6_31gd',
-    'partial_charges_esp_fit_pbe0_aug_pc_1',
-    'partial_charges_loewdin_hf_6_31gd',
-    'partial_charges_loewdin_pbe0_aug_pc_1',
-    'partial_charges_mulliken_hf_6_31gd',
-    'partial_charges_mulliken_pbe0_aug_pc_1',
-    'partial_charges_natural_nbo_hf_6_31gd',
-    'partial_charges_natural_nbo_pbe0_aug_pc_1',
+    'nmr_b3lyp_631ppgdp',
+    'nmr_b3lyp_augpcs1',
+    'nmr_pbe0_631ppgdp',
+    'nmr_pbe0_augpcs1',
+    'chg_esp_hf_631gd',
+    'chg_esp_pbe0_augpc1',
+    'chg_loe_hf_631gd',
+    'chg_loe_pbe0_augpc1',
+    'chg_mul_hf_631gd',
+    'chg_mul_pbe0_augpc1',
+    'chg_nat_hf_631gd',
+    'chg_nat_pbe0_augpc1',
     'partial_charges_paboon_hf_6_31gd',
     'partial_charges_paboon_pbe0_aug_pc_1',
 ]
 
 
-def find_zero_values(conformer):
+def find_zero_values(molecule):
   """Finds fields whose values are exactly 0.
 
   Fields that are exactly zero are likely to be problematic in some way so we
@@ -1425,80 +1671,89 @@ def find_zero_values(conformer):
   a handful of these.
 
   Args:
-    conformer: dataset_pb2.Conformer
+    molecule: dataset_pb2.Molecule
 
   Yields:
     string of field name
   """
-  properties = conformer.properties
+  properties = molecule.prop
 
   # excitation is different because it's a MultiScalar
-  if properties.HasField('excitation_energies_cc2'):
-    for value in properties.excitation_energies_cc2.value:
+  if properties.HasField('exc_ene_cc2_tzvp'):
+    for value in properties.exc_ene_cc2_tzvp.val:
       if value == 0.0:
-        yield 'excitation_energies_cc2'
+        yield 'exc_ene_cc2_tzvp'
 
   for field in _ZERO_FIELD_CHECK_SCALAR:
-    if properties.HasField(field) and getattr(properties, field).value == 0.0:
+    if properties.HasField(field) and getattr(properties, field).val == 0.0:
       yield field
 
   for field in _ZERO_FIELD_CHECK_ATOMIC:
     if properties.HasField(field):
-      for value in getattr(properties, field).values:
+      for value in getattr(properties, field).val:
         if value == 0.0:
           yield field
 
 
-def determine_fate(conformer):
-  """Determines the cateogrical FateCategory for conformer.
+def determine_fate(molecule):
+  """Determines the cateogrical FateCategory for molecule.
 
   Args:
-    conformer: dataset_pb2.Conformer
+    molecule: dataset_pb2.Molecule
 
   Returns:
-    dataset_pb2.Conformer.FateCategory
+    dataset_pb2.Properties.FateCategory
+
+  Raises:
+    ValueError: on unrecognized error level or source
   """
-  source = _conformer_source(conformer)
-  if source == _ConformerSource.DUPLICATE:
+  source = _molecule_source(molecule)
+  if source == _MoleculeSource.DUPLICATE:
     # This shouldn't really happen in the real set so we'll just leave it as
     # undefined.
-    return dataset_pb2.Conformer.FATE_UNDEFINED
+    return dataset_pb2.Properties.FATE_UNDEFINED
 
-  elif source == _ConformerSource.STAGE1:
-    if conformer.duplicated_by > 0:
-      this_btid = conformer.conformer_id // 1000
-      other_btid = conformer.duplicated_by // 1000
+  elif source == _MoleculeSource.STAGE1:
+    if molecule.duplicate_of > 0:
+      this_btid = molecule.mol_id // 1000
+      other_btid = molecule.duplicate_of // 1000
       if this_btid == other_btid:
-        return dataset_pb2.Conformer.FATE_DUPLICATE_SAME_TOPOLOGY
+        return dataset_pb2.Properties.FATE_DUPLICATE_SAME_TOPOLOGY
       else:
-        return dataset_pb2.Conformer.FATE_DUPLICATE_DIFFERENT_TOPOLOGY
+        return dataset_pb2.Properties.FATE_DUPLICATE_DIFFERENT_TOPOLOGY
 
-    status = conformer.properties.errors.status
+    status = molecule.prop.calc.status
     if status == 600:
-      return dataset_pb2.Conformer.FATE_GEOMETRY_OPTIMIZATION_PROBLEM
+      return dataset_pb2.Properties.FATE_FAILURE_GEO_OPT
     elif status == 590:
-      return dataset_pb2.Conformer.FATE_DISASSOCIATED
+      return dataset_pb2.Properties.FATE_FAILURE_TOPOLOGY_CHECK
     elif status == 570 or status == 580:
-      return dataset_pb2.Conformer.FATE_DISCARDED_OTHER
+      return dataset_pb2.Properties.FATE_FAILURE_STAGE2
     else:
       # This means that we can find no reason this shouldn't have gone on to
       # stage2.
-      return dataset_pb2.Conformer.FATE_NO_CALCULATION_RESULTS
+      return dataset_pb2.Properties.FATE_FAILURE_NO_RESULTS
 
-  elif source == _ConformerSource.STAGE2:
-    error_level = conformer_calculation_error_level(conformer)
-    if error_level == 5:
-      return dataset_pb2.Conformer.FATE_CALCULATION_WITH_SERIOUS_ERROR
+  elif source == _MoleculeSource.STAGE2:
+    error_level = molecule_calculation_error_level(molecule)
+    if error_level == 8:
+      return dataset_pb2.Properties.FATE_ERROR_SERIOUS
+    elif error_level == 7:
+      return dataset_pb2.Properties.FATE_ERROR_MAJOR
+    elif error_level == 6:
+      return dataset_pb2.Properties.FATE_ERROR_MODERATE
+    elif error_level == 5:
+      return dataset_pb2.Properties.FATE_SUCCESS_NEUTRAL_WARNING_SERIOUS
     elif error_level == 4:
-      return dataset_pb2.Conformer.FATE_CALCULATION_WITH_MAJOR_ERROR
+      return dataset_pb2.Properties.FATE_SUCCESS_NEUTRAL_WARNING_MEDIUM_VIB
     elif error_level == 3:
-      return dataset_pb2.Conformer.FATE_CALCULATION_WITH_MODERATE_ERROR
+      return dataset_pb2.Properties.FATE_SUCCESS_NEUTRAL_WARNING_LOW
     elif error_level == 2:
-      return dataset_pb2.Conformer.FATE_CALCULATION_WITH_WARNING_SERIOUS
+      return dataset_pb2.Properties.FATE_SUCCESS_ALL_WARNING_SERIOUS
     elif error_level == 1:
-      return dataset_pb2.Conformer.FATE_CALCULATION_WITH_WARNING_VIBRATIONAL
+      return dataset_pb2.Properties.FATE_SUCCESS_ALL_WARNING_MEDIUM_VIB
     elif error_level == 0:
-      return dataset_pb2.Conformer.FATE_SUCCESS
+      return dataset_pb2.Properties.FATE_SUCCESS_ALL_WARNING_LOW
     else:
       raise ValueError(f'Bad error_level {error_level}')
 
@@ -1506,14 +1761,13 @@ def determine_fate(conformer):
     raise ValueError(f'Got an unknown source {source}')
 
 
-def get_starting_bond_topology_index(conformer):
+def get_starting_bond_topology_index(molecule):
   """Gets the index of the bond topology which generated this calculation.
 
-  If there is only a single geometry, it's that one.
-  Otherwise, one of the geometries should be marked with is_starting_topology
+  see iterate_bond_topologies for fun details
 
   Args:
-    conformer: dataset_pb2.Conformer
+    molecule: dataset_pb2.Molecule
 
   Returns:
     integer
@@ -1521,99 +1775,128 @@ def get_starting_bond_topology_index(conformer):
   Raises:
     ValueError: if no starting topology can be found
   """
-  if len(conformer.bond_topologies) == 1:
-    return 0
-  for i in range(len(conformer.bond_topologies)):
-    if conformer.bond_topologies[i].is_starting_topology:
-      return i
+  try:
+    bt_idx, _ = next(
+        iterate_bond_topologies(molecule, WhichTopologies.STARTING))
+    return bt_idx
+  except StopIteration:
+    raise ValueError(f'For molecule {molecule.mol_id}, no starting topology'
+                    ) from StopIteration
 
-  raise ValueError(
-      f'For conformer {conformer.conformer_id}, no starting topology')
 
+def molecule_to_bond_topology_summaries(molecule):
+  """Produces BondTopologySummary protos from Molecule.
 
-def conformer_to_bond_topology_summaries(conformer):
-  """Produces BondTopologySummary protos from Conformer.
-
-  Since a conformer can be associated with many bond topologies, this can output
+  Since a molecule can be associated with many bond topologies, this can output
   potentially many summaries.
 
   Args:
-    conformer: dataset_pb2.Conformer
+    molecule: dataset_pb2.Molecule
 
   Yields:
     dataset_pb2.BondTopologySummary
+
+  Raises:
+    ValueError: on undefeined fate
   """
   summary = dataset_pb2.BondTopologySummary()
   try:
-    starting_idx = get_starting_bond_topology_index(conformer)
-    summary.bond_topology.CopyFrom(conformer.bond_topologies[starting_idx])
-    summary.count_attempted_conformers = 1
+    starting_idx = get_starting_bond_topology_index(molecule)
+    summary.bond_topology.CopyFrom(molecule.bond_topo[starting_idx])
+    summary.count_attempted_molecules = 1
   except ValueError:
     starting_idx = None
     # In this case, we won't yield the summary at all so we don't set anything
     # about it.
 
-  def other_topologies():
-    if starting_idx is None:
-      yield from conformer.bond_topologies
-    else:
-      yield from itertools.chain(conformer.bond_topologies[:starting_idx],
-                                 conformer.bond_topologies[(starting_idx + 1):])
-
-  def filtered_other_topologies():
+  def filtered_topologies(source):
     observed_bt_id = set()
-    if starting_idx is not None:
-      observed_bt_id.add(
-          conformer.bond_topologies[starting_idx].bond_topology_id)
-    for bt in other_topologies():
-      if bt.bond_topology_id not in observed_bt_id:
-        yield bt
-        observed_bt_id.add(bt.bond_topology_id)
+    # Special case DDT: We only want to filter the starting topology for the DDT
+    # source.
+    if (starting_idx is not None and
+        source == dataset_pb2.BondTopology.SOURCE_DDT):
+      observed_bt_id.add(molecule.bond_topo[starting_idx].topo_id)
+    for bt in molecule.bond_topo:
+      if not source & bt.info:
+        continue
+      if bt.topo_id in observed_bt_id:
+        continue
+      yield bt
+      observed_bt_id.add(bt.topo_id)
 
-  fate = conformer.fate
+  fate = molecule.prop.calc.fate
 
-  if fate == dataset_pb2.Conformer.FATE_UNDEFINED:
-    raise ValueError(f'Conformer {conformer.conformer_id} has undefined fate')
-  elif fate == dataset_pb2.Conformer.FATE_DUPLICATE_SAME_TOPOLOGY:
+  if fate == dataset_pb2.Properties.FATE_UNDEFINED:
+    raise ValueError(f'Molecule {molecule.mol_id} has undefined fate')
+
+  elif fate == dataset_pb2.Properties.FATE_DUPLICATE_SAME_TOPOLOGY:
     summary.count_duplicates_same_topology = 1
-  elif fate == dataset_pb2.Conformer.FATE_DUPLICATE_DIFFERENT_TOPOLOGY:
+
+  elif fate == dataset_pb2.Properties.FATE_DUPLICATE_DIFFERENT_TOPOLOGY:
     summary.count_duplicates_different_topology = 1
-  elif (fate == dataset_pb2.Conformer.FATE_GEOMETRY_OPTIMIZATION_PROBLEM or
-        fate == dataset_pb2.Conformer.FATE_DISASSOCIATED or
-        fate == dataset_pb2.Conformer.FATE_FORCE_CONSTANT_FAILURE or
-        fate == dataset_pb2.Conformer.FATE_DISCARDED_OTHER):
+
+  elif (fate == dataset_pb2.Properties.FATE_FAILURE_GEO_OPT or
+        fate == dataset_pb2.Properties.FATE_FAILURE_TOPOLOGY_CHECK or
+        fate == dataset_pb2.Properties.FATE_FORCE_CONSTANT_FAILURE or
+        fate == dataset_pb2.Properties.FATE_FAILURE_STAGE2):
     summary.count_failed_geometry_optimization = 1
-  elif fate == dataset_pb2.Conformer.FATE_NO_CALCULATION_RESULTS:
+
+  elif fate == dataset_pb2.Properties.FATE_FAILURE_NO_RESULTS:
     summary.count_kept_geometry = 1
     summary.count_missing_calculation = 1
-  elif (fate == dataset_pb2.Conformer.FATE_CALCULATION_WITH_SERIOUS_ERROR or
-        fate == dataset_pb2.Conformer.FATE_CALCULATION_WITH_MAJOR_ERROR or
-        fate == dataset_pb2.Conformer.FATE_CALCULATION_WITH_MODERATE_ERROR):
+
+  elif (fate == dataset_pb2.Properties.FATE_ERROR_SERIOUS or
+        fate == dataset_pb2.Properties.FATE_ERROR_MAJOR or
+        fate == dataset_pb2.Properties.FATE_ERROR_MODERATE):
     summary.count_kept_geometry = 1
     summary.count_calculation_with_error = 1
-    for bt in filtered_other_topologies():
-      other_summary = dataset_pb2.BondTopologySummary()
-      other_summary.bond_topology.CopyFrom(bt)
-      other_summary.count_detected_match_with_error = 1
-      yield other_summary
+    for source, field in [(dataset_pb2.BondTopology.SOURCE_DDT,
+                           'count_detected_match_itc_with_error'),
+                          (dataset_pb2.BondTopology.SOURCE_MLCR,
+                           'count_detected_match_mlcr_with_error'),
+                          (dataset_pb2.BondTopology.SOURCE_CSD,
+                           'count_detected_match_csd_with_error')]:
+      for bt in filtered_topologies(source):
+        other_summary = dataset_pb2.BondTopologySummary()
+        other_summary.bond_topology.CopyFrom(bt)
+        setattr(other_summary, field, 1)
+        yield other_summary
+
   elif (
-      fate == dataset_pb2.Conformer.FATE_CALCULATION_WITH_WARNING_SERIOUS or
-      fate == dataset_pb2.Conformer.FATE_CALCULATION_WITH_WARNING_VIBRATIONAL):
+      fate == dataset_pb2.Properties.FATE_SUCCESS_NEUTRAL_WARNING_SERIOUS or
+      fate == dataset_pb2.Properties.FATE_SUCCESS_ALL_WARNING_SERIOUS or
+      fate == dataset_pb2.Properties.FATE_SUCCESS_NEUTRAL_WARNING_MEDIUM_VIB or
+      fate == dataset_pb2.Properties.FATE_SUCCESS_ALL_WARNING_MEDIUM_VIB):
     summary.count_kept_geometry = 1
     summary.count_calculation_with_warning = 1
-    for bt in filtered_other_topologies():
-      other_summary = dataset_pb2.BondTopologySummary()
-      other_summary.bond_topology.CopyFrom(bt)
-      other_summary.count_detected_match_with_warning = 1
-      yield other_summary
-  elif fate == dataset_pb2.Conformer.FATE_SUCCESS:
+    for source, field in [(dataset_pb2.BondTopology.SOURCE_DDT,
+                           'count_detected_match_itc_with_warning'),
+                          (dataset_pb2.BondTopology.SOURCE_MLCR,
+                           'count_detected_match_mlcr_with_warning'),
+                          (dataset_pb2.BondTopology.SOURCE_CSD,
+                           'count_detected_match_csd_with_warning')]:
+      for bt in filtered_topologies(source):
+        other_summary = dataset_pb2.BondTopologySummary()
+        other_summary.bond_topology.CopyFrom(bt)
+        setattr(other_summary, field, 1)
+        yield other_summary
+
+  elif (fate == dataset_pb2.Properties.FATE_SUCCESS_NEUTRAL_WARNING_LOW or
+        fate == dataset_pb2.Properties.FATE_SUCCESS_ALL_WARNING_LOW):
     summary.count_kept_geometry = 1
     summary.count_calculation_success = 1
-    for bt in filtered_other_topologies():
-      other_summary = dataset_pb2.BondTopologySummary()
-      other_summary.bond_topology.CopyFrom(bt)
-      other_summary.count_detected_match_success = 1
-      yield other_summary
+    for source, field in [(dataset_pb2.BondTopology.SOURCE_DDT,
+                           'count_detected_match_itc_success'),
+                          (dataset_pb2.BondTopology.SOURCE_MLCR,
+                           'count_detected_match_mlcr_success'),
+                          (dataset_pb2.BondTopology.SOURCE_CSD,
+                           'count_detected_match_csd_success')]:
+      for bt in filtered_topologies(source):
+        other_summary = dataset_pb2.BondTopologySummary()
+        other_summary.bond_topology.CopyFrom(bt)
+        setattr(other_summary, field, 1)
+        yield other_summary
+
   else:
     raise ValueError(f'Did not understand {fate}')
 
@@ -1623,30 +1906,29 @@ def conformer_to_bond_topology_summaries(conformer):
   # Now emit our multiple detection records
   observed_bt_id = set()
   yielded_multi_detect = set()
-  for bt in conformer.bond_topologies:
-    if bt.bond_topology_id not in observed_bt_id:
-      observed_bt_id.add(bt.bond_topology_id)
+  for bt in molecule.bond_topo:
+    if bt.topo_id not in observed_bt_id:
+      observed_bt_id.add(bt.topo_id)
       continue
-    if bt.bond_topology_id not in yielded_multi_detect:
+    if bt.topo_id not in yielded_multi_detect:
       other_summary = dataset_pb2.BondTopologySummary()
       other_summary.bond_topology.CopyFrom(bt)
       other_summary.count_multiple_detections = 1
       yield other_summary
-      yielded_multi_detect.add(bt.bond_topology_id)
+      yielded_multi_detect.add(bt.topo_id)
 
 
-def conformer_eligible_for_topology_detection(conformer):
-  """Returns whether this conformer is worthy of topology detection.
+def molecule_eligible_for_topology_detection(molecule):
+  """Returns whether this molecule is worthy of topology detection.
 
-  Simple duplicate marking or conformers with unreliable geometries are not
+  Simple duplicate marking or molecules with unreliable geometries are not
   generally useful to do topology detection.
 
   Args:
-    conformer: dataset_pb2.Conformer
+    molecule: dataset_pb2.Molecule
 
   Returns:
     bool
   """
-  return (conformer.duplicated_by == 0 and
-          conformer.properties.errors.status >= 0 and
-          conformer.properties.errors.status < 512)
+  return (molecule.duplicate_of == 0 and molecule.prop.calc.status >= 0 and
+          molecule.prop.calc.status < 512)

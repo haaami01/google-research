@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2022 The Google Research Authors.
+# Copyright 2023 The Google Research Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -51,9 +51,9 @@ from __future__ import print_function
 
 import tensorflow.compat.v1 as tf
 
-from tensorflow_models.slim.datasets import download_and_convert_cifar10
-from tensorflow_models.slim.datasets import download_and_convert_flowers
-from tensorflow_models.slim.datasets import download_and_convert_mnist
+from datasets import download_and_convert_cifar10
+from datasets import download_and_convert_flowers
+from datasets import download_and_convert_mnist
 
 FLAGS = tf.app.flags.FLAGS
 

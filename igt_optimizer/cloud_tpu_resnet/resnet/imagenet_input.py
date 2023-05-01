@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2022 The Google Research Authors.
+# Copyright 2023 The Google Research Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -37,18 +37,6 @@ import abc
 from collections import namedtuple
 import functools
 import os
-# copybara:strip_begin
-from absl import flags
-import tensorflow.compat.v1 as tf
-from igt_optimizer.cloud_tpu_resnet.resnet import resnet_preprocessing
-from tensorflow.contrib import cloud as contrib_cloud
-from tensorflow.contrib import data as contrib_data
-from tensorflow.python.ops import control_flow_util
-
-flags.DEFINE_boolean(
-    'condv2', default=False, help='Use CondV2 as part of the input pipeline.')
-
-# copybara:strip_end
 
 
 def image_serving_input_fn():
@@ -66,7 +54,7 @@ def image_serving_input_fn():
   )
   images = tf.map_fn(
       _preprocess_image, image_bytes_list, back_prop=False, dtype=tf.float32)
-  return tf.estimator.export.TensorServingInputReceiver(
+  return tf_estimator.export.TensorServingInputReceiver(
       features=images, receiver_tensors=image_bytes_list)
 
 
@@ -167,10 +155,6 @@ class ImageNetTFExampleInput(object):
     Returns:
       A `tf.data.Dataset` object.
     """
-    # copybara:strip_begin
-    cond_v2_pre_value = control_flow_util.ENABLE_CONTROL_FLOW_V2
-    control_flow_util.ENABLE_CONTROL_FLOW_V2 = flags.FLAGS.condv2
-    # copybara:strip_end
 
     # Retrieves the batch size for the current shard. The # of shards is
     # computed according to the input pipeline deployment. See
@@ -215,9 +199,6 @@ class ImageNetTFExampleInput(object):
 
     # Prefetch overlaps in-feed with training
     dataset = dataset.prefetch(tf.data.experimental.AUTOTUNE)
-    # copybara:strip_begin
-    control_flow_util.ENABLE_CONTROL_FLOW_V2 = cond_v2_pre_value
-    # copybara:strip_end
     return dataset
 
 
@@ -334,12 +315,12 @@ class ImageNetInput(ImageNetTFExampleInput):
 
     # Read the data from disk in parallel
     dataset = dataset.apply(
-        contrib_data.parallel_interleave(
+        tf.data.experimental.parallel_interleave(
             fetch_dataset, cycle_length=64, sloppy=True))
 
     if self.cache:
       dataset = dataset.cache().apply(
-          contrib_data.shuffle_and_repeat(1024 * 16))
+          tf.data.experimental.shuffle_and_repeat(1024 * 16))
     else:
       dataset = dataset.shuffle(1024)
     return dataset

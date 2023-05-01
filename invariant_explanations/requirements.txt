@@ -1,8 +1,13 @@
-absl-py
+crcmod
+gsutil
+image
 matplotlib
 numpy
 pandas
 psutil
+saliency
+scikit-learn
+scipy
 seaborn
 tensorflow
 tensorflow-datasets

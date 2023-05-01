@@ -58,6 +58,14 @@ on mobile phone and demonstrated that models outperform previously reported accu
 This lib also can be applied on other sequence problems
 such as speech noise reduction, sound detection, text classification...
 
+## Video presentation:
+
+This [video](https://interspeech2020.oss-cn-beijing.aliyuncs.com/Wed/Wed-1-8-1.mp4) is an introduction into hotword streaming presented at [Interspeech](http://www.interspeech2020.org/index.php?m=content&c=index&a=show&catid=317&id=776).
+This [video](https://www.youtube.com/watch?v=FSxdVgMVMKQ) with [slides](https://cms.tinyml.org/wp-content/uploads/talks2022/Oleg-Rybakov.pdf) were presented at [TinyML](https://www.tinyml.org/event/summit-2022/).
+It overviews streaming aware model design. With different quantization aware approaches.
+It also describes multihead self attention (applied for hotword detection in [att_mh_rnn](https://arxiv.org/pdf/2005.06720.pdf) paper) with streaming example.
+
+
 ## Quick onboarding with toy demo:
 Before running any experiments you should install dependencies listed in [experiments](https://github.com/google-research/google-research/blob/master/kws_streaming/experiments/kws_experiments_12_labels.md#install-tensorflow-with-deps).
 Step by step demo is shown in [colabs](https://github.com/google-research/google-research/tree/master/kws_streaming/colab):
@@ -104,10 +112,12 @@ All experiments are listed in folder "experiments". It contains:
 * [kws_experiments_35_labels](https://github.com/google-research/google-research/blob/master/kws_streaming/experiments/kws_experiments_35_labels.md) - models trained on [data set v2](https://arxiv.org/pdf/1804.03209.pdf) with 35 labels. It is a good example of training models on custom data.
 * [kws_experiments_12_labels](https://github.com/google-research/google-research/blob/master/kws_streaming/experiments/kws_experiments_12_labels.md) - models trained on [data set v2](https://arxiv.org/pdf/1804.03209.pdf) with 12 labels (latest experiments with different hyperparameters).
 
+
 The latest experiments on speech commands V2 with 12 labels are shown in below table:
 |  Model name      | accuracy [%]  | # parameters |
 | ---------------- | --------------------- | --------------------- |
-|[bc_resnet](https://github.com/google-research/google-research/blob/master/kws_streaming/experiments/kws_experiments_12_labels.md) with <br> [bc_resnet](https://arxiv.org/pdf/2106.04140.pdf) topology | 95.8 (need more HPO,  in paper it is 96.9)      | ~10K      |
+|[bc_resnet_1](https://github.com/google-research/google-research/blob/master/kws_streaming/experiments/kws_experiments_12_labels.md#bc_resnet_1) with <br> [bc_resnet](https://arxiv.org/pdf/2106.04140.pdf) topology | 96.4 (need more HPO, in paper it is 96.9)      | ~10K      |
+|[bc_resnet_2](https://github.com/google-research/google-research/blob/master/kws_streaming/experiments/kws_experiments_12_labels.md#bc_resnet_2) with <br> [bc_resnet](https://arxiv.org/pdf/2106.04140.pdf) topology | 97.6      | 30K      |
 |[ds_tc_resnet](https://github.com/google-research/google-research/blob/master/kws_streaming/experiments/kws_experiments_12_labels.md) with <br> [MatchboxNet](https://arxiv.org/abs/2004.08531) topology | 98.0      | 75K      |
 |[att_mh_rnn ](https://github.com/google-research/google-research/blob/master/kws_streaming/experiments/kws_experiments_12_labels.md)| 98.4  |   750K     |
 
@@ -427,9 +437,9 @@ There are several options to run a model on desktop and mobile phone. These opti
 |                  | preprocess 'raw'; <br> feature_type 'mfcc_tf'  | preprocess 'raw'; <br> feature_type 'mfcc_op'  | preprocess 'mfcc'; <br> feature_type is ignored     | preprocess 'micro'; <br> feature_type is ignored    |
 | ---------------- | --------------------- | --------------------- | ------------------- | ------------------- |
 |**Speech feature <br> extractor:**| part of model      | part of model      |  not part of model|  not part of model|
-|**Speech feature <br> based on:**| DFT, DFT weights <br> are part of model  |   FFT     |    FFT    |     FFT         |
-|**Model size:**   |   DFT weights + model weights         |      model weights          |        model weights      |         model weights     |
-|**Quantization:** |    not implemented    |      post training    |     post training   |     post training   |
+|**Speech feature <br> based on:**| DFT, DFT weights <br> are part of model <br> if use_tf_fft=1 then with FFT is used |   FFT     |    FFT    |     FFT         |
+|**Model size:**   |   DFT weights + model weights, <br> if use_tf_fft=1 then use FFT + model weights only        |      model weights          |        model weights      |         model weights     |
+|**Quantization:** |    not implemented for DFT, <br> if use_tf_fft=1 PTQ works    |      post training    |     post training   |     post training   |
 |**Can run on:**   |    desktop, <br> mobile    |      desktop, <br> mobile  |     desktop, <br> mobile |   microcontrollers  |
 
 If speech feature extractor is part of the model then it is convenient for deployment, otherwise user will have to manage speech feature extractor and data streams between model and speech feature extractor. Speech feature extractor based on DFT can be a good option for hardware with no FFT support. Combination of FFT with post training quantization can reduce latency by 2x.

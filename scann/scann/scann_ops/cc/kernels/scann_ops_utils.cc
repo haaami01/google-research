@@ -1,4 +1,4 @@
-// Copyright 2022 The Google Research Authors.
+// Copyright 2023 The Google Research Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@ Status TensorFromProto(OpKernelContext* context, absl::string_view name,
   if (!SerializeToTString(*proto, &tensor->scalar<tstring>()()))
     return errors::Internal(
         absl::StrCat("Failed to create string tensor ", name));
-  return Status::OK();
+  return OkStatus();
 }
 
 void TensorFromProtoRequireOk(OpKernelContext* context, absl::string_view name,

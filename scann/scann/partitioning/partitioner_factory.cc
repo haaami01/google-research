@@ -1,4 +1,4 @@
-// Copyright 2022 The Google Research Authors.
+// Copyright 2023 The Google Research Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,7 +15,10 @@
 #include "scann/partitioning/partitioner_factory.h"
 
 #include <cstdint>
+#include <functional>
 #include <memory>
+#include <string>
+#include <utility>
 
 #include "absl/memory/memory.h"
 #include "absl/numeric/int128.h"
@@ -162,11 +165,9 @@ StatusOr<unique_ptr<Partitioner<T>>> PartitionerFromKMeansTree(
 SCANN_INSTANTIATE_SERIALIZED_PARTITIONER_FACTORY(, int8_t);
 SCANN_INSTANTIATE_SERIALIZED_PARTITIONER_FACTORY(, uint8_t);
 SCANN_INSTANTIATE_SERIALIZED_PARTITIONER_FACTORY(, int16_t);
-SCANN_INSTANTIATE_SERIALIZED_PARTITIONER_FACTORY(, uint16_t);
 SCANN_INSTANTIATE_SERIALIZED_PARTITIONER_FACTORY(, int32_t);
 SCANN_INSTANTIATE_SERIALIZED_PARTITIONER_FACTORY(, uint32_t);
 SCANN_INSTANTIATE_SERIALIZED_PARTITIONER_FACTORY(, int64_t);
-SCANN_INSTANTIATE_SERIALIZED_PARTITIONER_FACTORY(, uint64_t);
 SCANN_INSTANTIATE_SERIALIZED_PARTITIONER_FACTORY(, float);
 SCANN_INSTANTIATE_SERIALIZED_PARTITIONER_FACTORY(, double);
 

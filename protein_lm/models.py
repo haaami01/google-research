@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2022 The Google Research Authors.
+# Copyright 2023 The Google Research Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Lint as: python3
 """Standalone Flax models."""
 
 import abc
@@ -34,7 +33,7 @@ import gin
 from gin import config
 import jax
 from jax import random as jrandom
-import jax.experimental.optimizers
+import jax.example_libraries.optimizers
 import jax.nn
 import jax.numpy as jnp
 import numpy as onp
@@ -201,7 +200,7 @@ def train_step(optimizer,
   if grad_clip is not None:
     # Clip gradients after pmean aggregation
     unclipped_grad = grad
-    grad = jax.experimental.optimizers.clip_grads(grad, grad_clip)
+    grad = jax.example_libraries.optimizers.clip_grads(grad, grad_clip)
 
   new_optimizer = optimizer.apply_gradient(grad, learning_rate=lr)
 

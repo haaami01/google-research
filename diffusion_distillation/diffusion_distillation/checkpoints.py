@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2022 The Google Research Authors.
+# Copyright 2023 The Google Research Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Lint as: python3
 """Blocking checkpoint loading loops with flax/training/checkpoints.py.
 
 Checkpointing helper functions.
@@ -26,9 +25,7 @@ checkpoint files.
 import os
 import re
 import time
-
 from absl import logging
-
 from flax import serialization
 from tensorflow.compat.v2.io import gfile
 
@@ -127,7 +124,27 @@ def latest_checkpoint_path(ckpt_dir, prefix):
   return checkpoint_files[-1] if checkpoint_files else None
 
 
+def check_and_convert_gcs_filepath(filepath, raise_if_not_gcs=False):
+  """Utility for loading model checkpoints from GCS."""
+  if filepath[:5] == 'gs://':
+    local_filepath = '/temp/download/' + filepath[5:]
+    if os.path.exists(local_filepath):
+      print('loading from local copy of GCS file: ' + local_filepath)
+    else:
+      print('downloading file from GCS: ' + filepath)
+      dir_index = local_filepath.rfind('/')
+      os.system('mkdir -p ' + local_filepath[:dir_index])
+      os.system('gsutil cp ' + filepath + ' ' + local_filepath)
+    return local_filepath
+
+  else:
+    if raise_if_not_gcs:
+      raise ValueError('input not recognized as a GCS path')
+    return filepath
+
+
 def restore_from_path(ckpt_path, target):
+  ckpt_path = check_and_convert_gcs_filepath(ckpt_path)
   logging.info('Restoring checkpoint from %s', ckpt_path)
   with gfile.GFile(ckpt_path, 'rb') as fp:
     return serialization.from_bytes(target, fp.read())

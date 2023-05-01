@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2022 The Google Research Authors.
+# Copyright 2023 The Google Research Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -65,7 +65,7 @@ class DenseTest(tu.TestBase):
 
     # compile and train model
     model.compile(
-        optimizer=tf.keras.optimizers.RMSprop(
+        optimizer=tf.keras.optimizers.legacy.RMSprop(
             lr=0.001, rho=0.9, epsilon=None, decay=0.0),
         loss="mse")
     model.summary()

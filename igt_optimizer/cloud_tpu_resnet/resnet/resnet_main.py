@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2022 The Google Research Authors.
+# Copyright 2023 The Google Research Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Lint as: python3
 # Copyright 2018 The TensorFlow Authors. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -44,6 +43,7 @@ import absl.logging as _logging  # pylint: disable=unused-import
 import numpy as np
 from six.moves import zip
 import tensorflow.compat.v1 as tf
+from tensorflow.compat.v1 import estimator as tf_estimator
 
 from igt_optimizer import exp_igt_optimizer
 from igt_optimizer.cloud_tpu_resnet.hyperparameters import common_hparams_flags
@@ -54,9 +54,6 @@ from igt_optimizer.cloud_tpu_resnet.resnet import lars_util
 from igt_optimizer.cloud_tpu_resnet.resnet import resnet_model
 from tensorflow.contrib import cluster_resolver as contrib_cluster_resolver
 from tensorflow.contrib import summary
-# copybara:strip_begin
-from tensorflow.contrib.compiler import xla
-# copybara:strip_end
 from tensorflow.contrib.tpu.python.tpu import async_checkpoint
 from tensorflow.contrib.training.python.training import evaluation
 # pylint:disable=g-direct-tensorflow-import
@@ -146,18 +143,6 @@ flags.DEFINE_integer(
     default=None,
     help=('size parameter of DropBlock. Will not be used if dropblock_groups '
           'is empty.'))
-
-# copybara:strip_begin
-flags.DEFINE_boolean(
-    'xla_compile',
-    default=False,
-    help=('Compile computation with XLA, this flag has no effect when running '
-          'on TPU.'))
-flags.DEFINE_string(
-    'tpu_job_name', None,
-    'Name of TPU worker binary. Only necessary if job name is changed from'
-    ' default tpu_worker.')
-# copybara:strip_end
 
 flags.DEFINE_integer(
     'profile_every_n_steps',
@@ -406,7 +391,7 @@ def resnet_model_fn(features, labels, mode, params):
     assert not params['transpose_input']  # channels_first only for GPU
     features = tf.transpose(features, [0, 3, 1, 2])
 
-  if params['transpose_input'] and mode != tf.estimator.ModeKeys.PREDICT:
+  if params['transpose_input'] and mode != tf_estimator.ModeKeys.PREDICT:
     image_size = tf.sqrt(tf.shape(features)[0] / (3 * tf.shape(labels)[0]))
     features = tf.reshape(features, [image_size, image_size, 3, -1])
     features = tf.transpose(features, [3, 0, 1, 2])  # HWCN to NHWC
@@ -447,7 +432,7 @@ def resnet_model_fn(features, labels, mode, params):
         dropblock_keep_probs=dropblock_keep_probs,
         data_format=params['data_format'])
     return network(
-        inputs=features, is_training=(mode == tf.estimator.ModeKeys.TRAIN))
+        inputs=features, is_training=(mode == tf_estimator.ModeKeys.TRAIN))
 
   if params['precision'] == 'bfloat16':
     with contrib_tpu.bfloat16_scope():
@@ -456,16 +441,16 @@ def resnet_model_fn(features, labels, mode, params):
   elif params['precision'] == 'float32':
     logits = build_network()
 
-  if mode == tf.estimator.ModeKeys.PREDICT:
+  if mode == tf_estimator.ModeKeys.PREDICT:
     predictions = {
         'classes': tf.argmax(logits, axis=1),
         'probabilities': tf.nn.softmax(logits, name='softmax_tensor')
     }
-    return tf.estimator.EstimatorSpec(
+    return tf_estimator.EstimatorSpec(
         mode=mode,
         predictions=predictions,
         export_outputs={
-            'classify': tf.estimator.export.PredictOutput(predictions)
+            'classify': tf_estimator.export.PredictOutput(predictions)
         })
 
   # If necessary, in the model_fn, use params['batch_size'] instead the batch
@@ -487,7 +472,7 @@ def resnet_model_fn(features, labels, mode, params):
   ])
 
   host_call = None
-  if mode == tf.estimator.ModeKeys.TRAIN:
+  if mode == tf_estimator.ModeKeys.TRAIN:
     # Compute the current epoch and associated learning rate from global_step.
     global_step = tf.train.get_global_step()
     steps_per_epoch = params['num_train_images'] / params['train_batch_size']
@@ -594,7 +579,7 @@ def resnet_model_fn(features, labels, mode, params):
 
   eval_metrics = None
   scaffold_fn = None
-  if mode == tf.estimator.ModeKeys.EVAL:
+  if mode == tf_estimator.ModeKeys.EVAL:
 
     def metric_fn(labels, logits):
       """Evaluation metric function.
@@ -733,9 +718,6 @@ def main(unused_argv):
       tpu_config=contrib_tpu.TPUConfig(
           iterations_per_loop=params['iterations_per_loop'],
           num_shards=params['num_cores'],
-          # copybara:strip_begin
-          tpu_job_name=FLAGS.tpu_job_name,
-          # copybara:strip_end
           per_host_input_for_training=contrib_tpu.InputPipelineConfig
           .PER_HOST_V2))  # pylint: disable=line-too-long
 
@@ -748,17 +730,6 @@ def main(unused_argv):
       eval_batch_size=params['eval_batch_size'],
       export_to_tpu=FLAGS.export_to_tpu)
 
-  # copybara:strip_begin
-  if FLAGS.xla_compile:
-    resnet_classifier = contrib_tpu.TPUEstimator(
-        use_tpu=params['use_tpu'],
-        model_fn=xla.estimator_model_fn(resnet_model_fn),
-        config=config,
-        params=params,
-        train_batch_size=params['train_batch_size'],
-        eval_batch_size=params['eval_batch_size'],
-        export_to_tpu=FLAGS.export_to_tpu)
-  # copybara:strip_end
   assert (params['precision'] == 'bfloat16' or
           params['precision'] == 'float32'), (
               'Invalid value for precision parameter; '

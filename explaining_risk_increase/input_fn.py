@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2022 The Google Research Authors.
+# Copyright 2023 The Google Research Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,7 +20,7 @@ from __future__ import division
 from __future__ import print_function
 
 import tensorflow.compat.v1 as tf
-from tensorflow.contrib import data as contrib_data
+from tensorflow.compat.v1 import estimator as tf_estimator
 
 CONTEXT_KEY_PREFIX = 'c-'
 SEQUENCE_KEY_PREFIX = 's-'
@@ -186,7 +186,7 @@ def _make_parsing_fn(mode, label_name, sequence_features,
   context_features_config['sequenceLength'] = tf.io.FixedLenFeature(
       [], tf.int64, default_value=-1)
 
-  if mode != tf.estimator.ModeKeys.PREDICT:
+  if mode != tf_estimator.ModeKeys.PREDICT:
     context_features_config[label_name] = tf.io.VarLenFeature(tf.string)
 
   def _parse_fn(serialized_examples):
@@ -318,7 +318,7 @@ def get_input_fn(mode,
       the feature names, and 2) a tensor of target labels if the mode
       is not INFER (and None, otherwise).
     """
-    is_training = mode == tf.estimator.ModeKeys.TRAIN
+    is_training = mode == tf_estimator.ModeKeys.TRAIN
     num_epochs = None if is_training else 1
 
     with tf.name_scope('read_batch'):
@@ -328,7 +328,7 @@ def get_input_fn(mode,
         files = files.shuffle(buffer_size=len(file_names))
       dataset = (
           files.apply(
-              contrib_data.parallel_interleave(
+              tf.data.experimental.parallel_interleave(
                   tf.data.TFRecordDataset, cycle_length=10)).repeat(num_epochs))
       if shuffle:
         dataset = dataset.shuffle(buffer_size=100)
@@ -345,7 +345,7 @@ def get_input_fn(mode,
           .map(feature_engineering_fn, num_parallel_calls=8)
           .prefetch(buffer_size=1).make_one_shot_iterator().get_next())
       label = None
-      if mode != tf.estimator.ModeKeys.PREDICT:
+      if mode != tf_estimator.ModeKeys.PREDICT:
         label = feature_map.pop(CONTEXT_KEY_PREFIX + label_name)
       return feature_map, {label_name: label}
 

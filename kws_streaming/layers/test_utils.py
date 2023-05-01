@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2022 The Google Research Authors.
+# Copyright 2023 The Google Research Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -40,6 +40,8 @@ class Params(object):
   sample_rate: int = 16000  # sample rate of the data
   data_stride: int = 1  # strides for data
   batch_size: int = 1  # batch size
+  quantize: bool = False  # quantization
+  use_quantize_nbit: bool = False  # quantization uses nbit scheme.
 
   def __post_init__(self):
     # defines the step of feeding input data
@@ -51,6 +53,8 @@ class Params(object):
     # align data length with the step
     self.desired_samples = (
         self.desired_samples // self.data_shape[0]) * self.data_shape[0]
+
+    self.cond_shape = ()
 
 
 def get_test_batch_features_and_labels_numpy(input_shape=None,

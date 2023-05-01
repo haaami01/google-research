@@ -1,4 +1,4 @@
-// Copyright 2022 The Google Research Authors.
+// Copyright 2023 The Google Research Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,6 +14,9 @@
 
 #ifndef SCANN_DISTANCE_MEASURES_ONE_TO_ONE_LIMITED_INNER_PRODUCT_H_
 #define SCANN_DISTANCE_MEASURES_ONE_TO_ONE_LIMITED_INNER_PRODUCT_H_
+
+#include <algorithm>
+#include <cmath>
 
 #include "scann/distance_measures/distance_measure_base.h"
 #include "scann/distance_measures/one_to_one/common.h"

@@ -1,4 +1,4 @@
-// Copyright 2022 The Google Research Authors.
+// Copyright 2023 The Google Research Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,6 +13,8 @@
 // limitations under the License.
 
 #include "scann/utils/memory_logging.h"
+
+#include <string>
 
 #include "absl/strings/str_cat.h"
 #include "scann/oss_wrappers/scann_malloc_extension.h"

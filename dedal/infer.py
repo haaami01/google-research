@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2022 The Google Research Authors.
+# Copyright 2023 The Google Research Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -32,10 +32,10 @@ def preprocess(left, right, max_length = 512):
   seqs = {k: v.strip().upper() for k, v in seqs.items()}
   keys = list(seqs.keys())
   transformations = [
-      transforms.Encode(vocab=vocabulary.alternative, on=keys),
-      transforms.EOS(vocab=vocabulary.alternative, on=keys),
+      transforms.Encode(vocab=vocabulary.seqio_vocab, on=keys),
+      transforms.EOS(vocab=vocabulary.seqio_vocab, on=keys),
       transforms.CropOrPad(
-          size=max_length, vocab=vocabulary.alternative, on=keys)]
+          size=max_length, vocab=vocabulary.seqio_vocab, on=keys)]
   for t in transformations:
     seqs = t(seqs)
   return tf.stack([seqs['left'], seqs['right']], axis=0)

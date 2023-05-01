@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2022 The Google Research Authors.
+# Copyright 2023 The Google Research Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,8 +20,8 @@ from absl import app
 from absl import flags
 from absl import logging
 from official.common import distribute_utils
+from official.legacy.bert import configs
 from official.nlp import optimization
-from official.nlp.bert import configs
 from official.utils.misc import keras_utils
 import tensorflow as tf
 

@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2022 The Google Research Authors.
+# Copyright 2023 The Google Research Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -791,7 +791,7 @@ class ImagenetPreprocessor(RecordInputImagePreprocessor):
   def preprocess(self, image_buffer, bbox, batch_position):
     # pylint: disable=g-import-not-at-top
     try:
-      from tensorflow_models.official.r1.resnet.imagenet_preprocessing import preprocess_image
+      from official.r1.resnet.imagenet_preprocessing import preprocess_image
     except ImportError:
       tf.logging.fatal('Please include tensorflow/models to the PYTHONPATH.')
       raise

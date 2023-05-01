@@ -1,4 +1,4 @@
-// Copyright 2022 The Google Research Authors.
+// Copyright 2023 The Google Research Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@
 #include <cmath>
 #include <cstdint>
 #include <stack>
+#include <string>
 #include <unordered_map>
 
 #include "absl/base/internal/sysinfo.h"
@@ -129,6 +130,13 @@ class DistanceComparator {
     if (a.distance() < b.distance()) return true;
     if (a.distance() > b.distance()) return false;
     return a.docid() < b.docid();
+  }
+
+  bool operator()(const NearestNeighbors::Neighbor* a,
+                  const NearestNeighbors::Neighbor* b) const {
+    DCHECK(a);
+    DCHECK(b);
+    return operator()(*a, *b);
   }
 };
 

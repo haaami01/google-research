@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2022 The Google Research Authors.
+# Copyright 2023 The Google Research Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Lint as: python2, python3
 # pylint: disable=invalid-name,g-bad-import-order,missing-docstring
 from __future__ import absolute_import
 from __future__ import division
@@ -192,7 +191,7 @@ def GetTargetSpec(
       return shift, log_scale
 
     mg = tfd.MultivariateNormalDiag(
-        loc=tf.zeros(num_dims), scale_identity_multiplier=1.0)
+        loc=tf.zeros(num_dims), scale_diag=tf.ones(num_dims))
     target = tfd.TransformedDistribution(
         mg, bijector=tfb.MaskedAutoregressiveFlow(funnel_forward))
   elif name == "ill_cond_gaussian":
@@ -581,11 +580,11 @@ def GetTargetSpec(
         bijector=bijector)
   elif name == "mog":
     comp_1 = tfd.MultivariateNormalDiag(
-        loc=[-1., 1.] + [0.] * (num_dims - 2), scale_identity_multiplier=2.)
+        loc=[-1., 1.] + [0.] * (num_dims - 2), scale_diag=[2.] * num_dims)
     comp_2 = tfd.MultivariateNormalDiag(
-        loc=[1., 1.] + [0.] * (num_dims - 2), scale_identity_multiplier=4.)
+        loc=[1., 1.] + [0.] * (num_dims - 2), scale_diag=[4.] * num_dims)
     comp_3 = tfd.MultivariateNormalDiag(
-        loc=[0., 0.] + [0.] * (num_dims - 2), scale_identity_multiplier=2.)
+        loc=[0., 0.] + [0.] * (num_dims - 2), scale_diag=[2.] * num_dims)
     cat = tfd.Categorical(logits=[0] * 3)
     target = tfd.Mixture(cat=cat, components=[comp_1, comp_2, comp_3])
     spec = TargetSpec(

@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2022 The Google Research Authors.
+# Copyright 2023 The Google Research Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -83,8 +83,12 @@ class Params(object):
     self.wav = 1
     self.data_stride = 1
     self.quantize = 0
+    self.use_quantize_nbit = 0
+    self.nbit_activation_bits = 8
+    self.nbit_weight_bits = 8
     self.use_one_step = True
     self.data_stride = 1
+    self.cond_shape = ()
 
     # will be updated by update_flags()
     self.window_stride_samples = None

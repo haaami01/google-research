@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2022 The Google Research Authors.
+# Copyright 2023 The Google Research Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -241,7 +241,7 @@ class Model:
         ok = jnp.all(jnp.asarray([
             jnp.all(jnp.isfinite(p)) for p in jax.tree_leaves(new_optimizer)]))
         new_state_no_update = state.replace(step=step + 1)
-        state = jax.tree_multimap(
+        state = jax.tree_map(
             lambda a, b: jnp.where(ok, a, b), new_state, new_state_no_update)
       else:
         logging.info('Update skipping disabled')

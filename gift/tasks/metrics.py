@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2022 The Google Research Authors.
+# Copyright 2023 The Google Research Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -493,9 +493,9 @@ def parameter_distance(params, base_params, norm_factor, mode):
     A scalar reflecting distance between the given models.
   """
   if mode == 'dot':
-    params_dists = jax.tree_multimap(cosine_distance, params, base_params)
+    params_dists = jax.tree_map(cosine_distance, params, base_params)
   elif mode == 'l2':
-    params_dists = jax.tree_multimap(l2_distance, params, base_params)
+    params_dists = jax.tree_map(l2_distance, params, base_params)
   else:
     raise ValueError('The specified parameter distance mode is not valid.')
 

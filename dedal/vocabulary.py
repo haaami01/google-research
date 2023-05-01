@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2022 The Google Research Authors.
+# Copyright 2023 The Google Research Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -87,8 +87,8 @@ class Vocabulary:
     return self.get(self._padding)
 
   def get_specials(self, with_padding = True):
-    return (self.specials if not with_padding
-            else self.specials + (self._padding,))
+    return (self.specials if not with_padding  # pytype: disable=bad-return-type  # trace-all-classes
+            else self.specials + (self._padding,))  # pytype: disable=bad-return-type  # trace-all-classes
 
   @property
   def mask_code(self):
@@ -96,7 +96,7 @@ class Vocabulary:
 
   def get(self, token, default_value=None):
     """Returns the int encoding of the token if exists or the default value."""
-    return self._indices.get(token, default_value)
+    return self._indices.get(token, default_value)  # pytype: disable=bad-return-type  # trace-all-classes
 
   def compute_mask(self, inputs, tokens):
     """Computes mask for a batch of input tokens.
@@ -139,6 +139,42 @@ class Vocabulary:
     return [target.get(token, target.padding_code) for token in self._voc]
 
 
+@tf.keras.utils.register_keras_serializable()
+@gin.configurable
+class SeqIOVocabulary(Vocabulary):
+  """Vocabulary compatible with the SeqIO data pipelines."""
+
+  def __init__(  # pylint: disable=super-init-not-called
+      self,
+      tokens,
+      control_specials,
+      user_specials,
+      extra_ids = 95,
+  ):
+    extra_id_specials = tuple(
+        f'▁<extra_id_{i}>' for i in reversed(range(1, extra_ids)))
+    mask = (self.MASK,)
+    self._voc = list(itertools.chain.from_iterable(
+        [control_specials, tokens, user_specials, extra_id_specials, mask]))
+    self._indices = {t: i for i, t in enumerate(self._voc)}
+
+    self.tokens = tokens
+    self.specials = tuple(itertools.chain.from_iterable(
+        [control_specials, user_specials, extra_id_specials]))
+    self._control_specials = control_specials
+    self._user_specials = user_specials
+    self._extra_ids = extra_ids
+    self._padding = control_specials[0]
+    self._order = None
+
+  def get_config(self):
+    """For keras serialization compatibility."""
+    return dict(tokens=self.tokens,
+                control_specials=self._control_specials,
+                user_specials=self._user_specials,
+                extra_ids=self._extra_ids)
+
+
 proteins = Vocabulary(
     tokens='LAVGESIRDTKPFNQYHMWCUOBZX',
     specials=('<', '>'),
@@ -157,8 +193,17 @@ alternative = Vocabulary(
 gin.constant('vocabulary.alternative', alternative)
 
 
+seqio_vocab = SeqIOVocabulary(
+    tokens='ARNDCEQGHILKMFPSTWYVBZXJOU',
+    control_specials=('_', '>', '?', '<', '▁'),
+    user_specials=('.', '-'),
+    extra_ids=95,
+)
+gin.constant('vocabulary.seqio_vocab', seqio_vocab)
+
+
 @gin.configurable
-def get_default(vocab = alternative):
+def get_default(vocab = seqio_vocab):
   """A convenient function to gin configure the default vocabulary."""
   return vocab
 

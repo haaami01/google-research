@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2022 The Google Research Authors.
+# Copyright 2023 The Google Research Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -94,7 +94,8 @@ if __name__ == "__main__":
   parser.add_argument("--input", required=True, help="path to the input data")
   parser.add_argument(
       "--output", required=True, help="path for the output data")
-  parser.add_argument("--rule", help="path to the input FST rule")
+  parser.add_argument(
+      "--rule", required=True, help="path to the input FST rule")
   parser.add_argument(
       "--input_token_type",
       default="utf8",

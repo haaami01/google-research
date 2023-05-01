@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2022 The Google Research Authors.
+# Copyright 2023 The Google Research Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -78,7 +78,7 @@ class InstanceSegmentUtilsTest(tf.test.TestCase):
                         expected_selected_instances.numpy())
     self.assertAllClose(masks.numpy(), expected_masks.numpy())
 
-  def test_inputs_Distances_to_centers(self):
+  def test_inputs_distances_to_centers(self):
     inputs = tf.random.uniform(
         [100, 8], minval=-10, maxval=10.0, dtype=tf.float32)
     centers = tf.random.uniform(

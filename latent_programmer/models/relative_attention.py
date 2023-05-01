@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2022 The Google Research Authors.
+# Copyright 2023 The Google Research Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@
 # pytype: disable=attribute-error
 
 import functools
-from typing import Any, Callable, Iterable, Optional
+from typing import Any, Callable, Optional, Sequence
 
 from flax.linen import attention
 from flax.linen import initializers
@@ -31,7 +31,7 @@ from jax import lax
 import jax.numpy as jnp
 
 PRNGKey = Any
-Shape = Iterable[int]
+Shape = Sequence[int]
 Dtype = Any
 Array = Any
 

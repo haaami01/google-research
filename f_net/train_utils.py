@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2022 The Google Research Authors.
+# Copyright 2023 The Google Research Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@ from flax import optim
 
 import jax
 from jax import random
-import jax.experimental.optimizers
+import jax.example_libraries.optimizers
 import jax.numpy as jnp
 
 # Type Stubs
@@ -162,7 +162,7 @@ def _measure_and_maybe_clip_grad(grad,
 
   if clipped_grad_norm is not None:
     # Clip gradients after pmean aggregation
-    grad = jax.experimental.optimizers.clip_grads(grad, clipped_grad_norm)
+    grad = jax.example_libraries.optimizers.clip_grads(grad, clipped_grad_norm)
     metrics["clipped_grad_l2_sum"] = sum(
         [jnp.sum(x**2) for x in jax.tree_leaves(grad)])
   else:

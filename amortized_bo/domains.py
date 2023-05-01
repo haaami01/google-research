@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2022 The Google Research Authors.
+# Copyright 2023 The Google Research Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,11 +13,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Lint as: python3
 """Specifications for different types of input/output domains."""
 
 import abc
 import collections
+from collections.abc import Iterable
 
 import gin
 import numpy as np
@@ -70,7 +70,7 @@ class Vocabulary(object):
       mask_token: A special token than marks MASKED positions for e.g. BERT.
         Ignored if `include_mask == False`.
     """
-    if not isinstance(tokens, collections.Iterable):
+    if not isinstance(tokens, Iterable):
       tokens = range(tokens)
     tokens = [str(token) for token in tokens]
     if include_bos:
@@ -202,7 +202,7 @@ class DiscreteDomain(Domain):
 
   @property
   def vocab(self):
-    return self._vocab
+    return self._vocab  # pytype: disable=attribute-error  # trace-all-classes
 
   def encode(self, samples, **kwargs):
     """Maps a list of string tokens to a list of lists of integer token ids."""

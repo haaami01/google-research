@@ -24,7 +24,7 @@ processed and displayed later in aggregate.
 The codebase is accompanied with sample weights and metrics data extracted from
 the predict_dnn_accuracy repository (link below), and can run out of the box.
 To run on the actual weights/metrics files, download the data form the link
-below and set the `run_on_test_data` variable to False.
+below and set the `RUN_ON_TEST_DATA` variable to False.
 
 https://github.com/google-research/google-research/tree/master/dnn_predict_accuracy
 
@@ -43,6 +43,11 @@ pip install -r requirements.txt
 mkdir -p _experiments
 ```
 
+Check that the test data and code are correct by running (all test should pass):
+```console
+python utils_test.py
+```
+
 Then, for each execution, run:
 
 ```console
@@ -52,3 +57,16 @@ python -m main
 
 Finally, view the output under the corresponding (lasest timestamped) folder
 under `_experiments`.
+
+
+TODO(amirhkarimi): add details of how to merge results downloaded from GCP.
+TODO(amirhkarimi): complete below
+TODO(amirhkarimi): s/col_type/hparam_type
+```
+s/_EXPLANATION_TYPE/_EXPLAINER
+```
+
+For Fig 3:
+```console
+python main.py --dataset=cifar10 --min_base_model_accuracy=0 --num_samples_per_base_model=32 --num_samples_to_plot_te_for=10 --run_on_precomputed_gcp_data=True
+```

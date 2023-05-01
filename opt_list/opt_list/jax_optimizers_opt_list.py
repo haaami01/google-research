@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2022 The Google Research Authors.
+# Copyright 2023 The Google Research Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,9 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Lint as: python3
 """Learned optimizer search spaces in Jax using Flax style optimizers!"""
-from jax.experimental import optimizers
+from jax.example_libraries import optimizers
 import jax.numpy as jnp
 from opt_list import common
 from opt_list import jax_common

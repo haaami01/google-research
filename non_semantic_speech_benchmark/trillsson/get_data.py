@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2022 The Google Research Authors.
+# Copyright 2023 The Google Research Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Lint as: python3
 """Get data."""
 # TODO(joelshor): The current cropping scheme biases data towards the beginning
 # of samples. Consider random cropping the longer utterances, instead of taking
@@ -133,6 +132,7 @@ def get_data(file_patterns,
       # Drop batches that are way to short.
       .filter(lambda *args: tf.shape(args[0])[1] > min_samples_length))
 
+  random_crop = tf.keras.layers.RandomCrop(height=max_samples_length, width=1)
   def _crop(*args):
     samples = args[0]
     samples.shape.assert_has_rank(2)
@@ -143,9 +143,7 @@ def get_data(file_patterns,
     logging.info('[get_data.crop] Cropping to %i...', max_samples_length)
     samples = tf.expand_dims(tf.expand_dims(samples, axis=-1), axis=-1)
     # Pretend input is batches images of shape (..., height, width, channels).
-    cropped_samples = tf.keras.layers.RandomCrop(
-        height=max_samples_length, width=1)(
-            samples)
+    cropped_samples = random_crop(samples)
     cropped_samples = tf.squeeze(cropped_samples, axis=[2, 3])
     return (cropped_samples,) + args[1:]
 

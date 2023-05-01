@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2022 The Google Research Authors.
+# Copyright 2023 The Google Research Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Lint as: python3
 
 """Contains the core layer classes for model pruning and its functional aliases.
 
@@ -23,10 +22,11 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+from tensorflow.compat.v2.keras.layers import InputSpec
+
 # pylint: disable=g-direct-tensorflow-import
 from tensorflow.python.framework import ops
 from tensorflow.python.framework import tensor_shape
-from tensorflow.python.keras.engine import input_spec
 from tensorflow.python.layers import base
 from tensorflow.python.layers import utils
 from tensorflow.python.ops import array_ops
@@ -84,7 +84,7 @@ class _MaskedConv(base.Layer):
     self.bias_initializer = bias_initializer
     self.kernel_regularizer = kernel_regularizer
     self.bias_regularizer = bias_regularizer
-    self.input_spec = input_spec.InputSpec(ndim=self.rank + 2)
+    self.input_spec = InputSpec(ndim=self.rank + 2)
 
   def build(self, input_shape):
     input_shape = tensor_shape.TensorShape(input_shape)
@@ -136,7 +136,7 @@ class _MaskedConv(base.Layer):
           dtype=self.dtype)
     else:
       self.bias = None
-    self.input_spec = input_spec.InputSpec(
+    self.input_spec = InputSpec(
         ndim=self.rank + 2, axes={channel_axis: input_dim})
     self.built = True
 

@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2022 The Google Research Authors.
+# Copyright 2023 The Google Research Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -73,6 +73,9 @@ cmd_opt.add_argument('-directed', default=False, type=eval, help='is directed gr
 cmd_opt.add_argument('-self_loop', default=False, type=eval, help='has self-loop?')
 cmd_opt.add_argument('-bfs_permute', default=False, type=eval, help='random permute with bfs?')
 cmd_opt.add_argument('-display', default=False, type=eval, help='display progress?')
+
+cmd_opt.add_argument('-has_edge_feats', default=False, type=eval, help='has edge features?')
+cmd_opt.add_argument('-has_node_feats', default=False, type=eval, help='has node features?')
 
 cmd_args, _ = cmd_opt.parse_known_args()
 

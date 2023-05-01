@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2022 The Google Research Authors.
+# Copyright 2023 The Google Research Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Lint as: python3
 """Functions for the forward pass (symbolic and decimal) of a neural network.
 
 Given an image and a trained neural network this code does an smt encoding of
@@ -1035,6 +1034,6 @@ def visualize_saliency_map(saliency_map, title=''):
     title: str, title of the saliency map.
   """
   _verify_saliency_map_shape(saliency_map)
-  plt.imshow(saliency_map, cmap=plt.cm.gray, vmin=0, vmax=1)
+  plt.imshow(saliency_map, cmap=plt.cm.gray, vmin=0, vmax=1)  # pytype: disable=module-attr
   plt.title(title)
   remove_ticks()

@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2022 The Google Research Authors.
+# Copyright 2023 The Google Research Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -142,7 +142,8 @@ class Dedal(tf.keras.Model):
       return inputs
     else:
       if not backprop:
-        inputs = tf.nest.map_structure(tf.stop_gradient, inputs)
+        safe_stop_grad = lambda t: None if t is None else tf.stop_gradient(t)
+        inputs = tf.nest.map_structure(safe_stop_grad, inputs)
       return head(inputs, mask=mask, training=training)
 
   def forward(self,
@@ -260,10 +261,12 @@ class Dedal(tf.keras.Model):
 class DedalLight(tf.keras.Model):
   """A light-weight model to be easily exported with tf.saved_model."""
 
-  def __init__(self, encoder, aligner, **kwargs):
+  def __init__(
+      self, encoder, aligner, homology_head, **kwargs):
     super().__init__(**kwargs)
     self.encoder = encoder
     self.aligner = aligner
+    self.homology_head = homology_head
 
   @tf.function
   def call(self, inputs, training = False, embeddings_only = False):
@@ -279,5 +282,16 @@ class DedalLight(tf.keras.Model):
     embedding_pairs, mask_pairs = pairs_lib.build(indices, embeddings, masks)
     alignments = self.aligner(
         embedding_pairs, mask=mask_pairs, training=training)
-    return alignments
 
+    # Computes homology scores from SW scores and sequence lengths.
+    homology_scores = self.homology_head(
+        alignments, mask=mask_pairs, training=training)
+    # Removes "dummy" trailing dimension.
+    homology_scores = tf.squeeze(homology_scores, axis=-1)
+
+    return {
+        'sw_params': alignments[2],
+        'sw_scores': alignments[0],
+        'paths': alignments[1],
+        'homology_logits': homology_scores,
+    }

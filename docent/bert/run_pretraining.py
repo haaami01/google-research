@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2022 The Google Research Authors.
+# Copyright 2023 The Google Research Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -23,8 +23,8 @@ import os
 from docent.bert import modeling
 from bert import optimization
 import tensorflow.compat.v1 as tf
+from tensorflow.compat.v1 import estimator as tf_estimator
 from tensorflow.contrib import cluster_resolver as contrib_cluster_resolver
-from tensorflow.contrib import data as contrib_data
 from tensorflow.contrib import tpu as contrib_tpu
 
 flags = tf.flags
@@ -145,7 +145,7 @@ def model_fn_builder(bert_config, init_checkpoint, learning_rate,
     masked_lm_weights = features["masked_lm_weights"]
     next_sentence_labels = features["next_sentence_labels"]
 
-    is_training = (mode == tf.estimator.ModeKeys.TRAIN)
+    is_training = (mode == tf_estimator.ModeKeys.TRAIN)
 
     model = modeling.BertModel(
         config=bert_config,
@@ -227,7 +227,7 @@ def model_fn_builder(bert_config, init_checkpoint, learning_rate,
                       init_string)
 
     output_spec = None
-    if mode == tf.estimator.ModeKeys.TRAIN:
+    if mode == tf_estimator.ModeKeys.TRAIN:
       train_op = optimization.create_optimizer(
           total_loss, learning_rate, num_train_steps, num_warmup_steps, use_tpu)
 
@@ -261,13 +261,13 @@ def model_fn_builder(bert_config, init_checkpoint, learning_rate,
             "accuracy/mlm_accuracy": tf.expand_dims(masked_lm_accuracy, 0),
         }
       host_call = (_host_fn, host_inputs)
-      output_spec = tf.estimator.tpu.TPUEstimatorSpec(
+      output_spec = tf_estimator.tpu.TPUEstimatorSpec(
           mode=mode,
           loss=total_loss,
           train_op=train_op,
           host_call=host_call,
           scaffold_fn=scaffold_fn)
-    elif mode == tf.estimator.ModeKeys.EVAL:
+    elif mode == tf_estimator.ModeKeys.EVAL:
 
       def metric_fn(masked_lm_example_loss, masked_lm_log_probs, masked_lm_ids,
                     masked_lm_weights, next_sentence_example_loss,
@@ -469,7 +469,7 @@ def input_fn_builder(input_files,
       # `sloppy` mode means that the interleaving is not exact. This adds
       # even more randomness to the training pipeline.
       d = d.apply(
-          contrib_data.parallel_interleave(
+          tf.data.experimental.parallel_interleave(
               tf.data.TFRecordDataset,
               sloppy=is_training,
               cycle_length=cycle_length))

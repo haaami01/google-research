@@ -1,4 +1,4 @@
-// Copyright 2022 The Google Research Authors.
+// Copyright 2023 The Google Research Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -34,6 +34,7 @@
 // given as an input.
 
 #include <cstdint>
+#include <memory>
 #include <vector>
 
 #include "google/protobuf/duration.pb.h"
@@ -139,7 +140,7 @@ class SetAnnotatedRecordingCollectionMetadataCalculator
               .Tag(kOriginalAnnotatedRecordingCollectionTag)
               .Get<AnnotatedRecordingCollection>();
     }
-    auto result = absl::make_unique<AnnotatedRecordingCollection>(
+    auto result = std::make_unique<AnnotatedRecordingCollection>(
         cc->Inputs()
             .Tag(kProcessedAnnotatedRecordingCollectionTag)
             .Get<AnnotatedRecordingCollection>());

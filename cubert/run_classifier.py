@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2022 The Google Research Authors.
+# Copyright 2023 The Google Research Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -58,6 +58,7 @@ from bert import optimization
 from bert import tokenization
 from tensor2tensor.data_generators import text_encoder
 import tensorflow.compat.v1 as tf
+from tensorflow.compat.v1 import estimator as tf_estimator
 
 from cubert import code_to_subtokenized_sentences
 from cubert import tokenizer_registry
@@ -647,7 +648,7 @@ def model_fn_builder(bert_config, num_labels, init_checkpoint, learning_rate,
     else:
       is_real_example = tf.ones(tf.shape(label_ids), dtype=tf.float32)
 
-    is_training = (mode == tf.estimator.ModeKeys.TRAIN)
+    is_training = (mode == tf_estimator.ModeKeys.TRAIN)
 
     (total_loss, per_example_loss, logits,
      probabilities) = create_model(bert_config, is_training, input_ids,
@@ -679,7 +680,7 @@ def model_fn_builder(bert_config, num_labels, init_checkpoint, learning_rate,
                       init_string)
 
     output_spec = None
-    if mode == tf.estimator.ModeKeys.TRAIN:
+    if mode == tf_estimator.ModeKeys.TRAIN:
 
       train_op = optimization.create_optimizer(total_loss, learning_rate,
                                                num_train_steps,
@@ -692,7 +693,7 @@ def model_fn_builder(bert_config, num_labels, init_checkpoint, learning_rate,
           scaffold_fn=scaffold_fn)
       return output_spec
 
-    elif mode == tf.estimator.ModeKeys.EVAL:
+    elif mode == tf_estimator.ModeKeys.EVAL:
 
       def metric_fn(per_example_loss, label_ids, logits, is_real_example):
         predictions = tf.argmax(logits, axis=-1, output_type=tf.int32)
@@ -933,7 +934,7 @@ def main(_):
       # later on. These do NOT count towards the metric (all tf.metrics
       # support a per-instance weight, and these get a weight of 0.0).
       while len(eval_examples) % FLAGS.eval_batch_size != 0:
-        eval_examples.append(PaddingInputExample())
+        eval_examples.append(PaddingInputExample())  # pytype: disable=attribute-error  # always-use-return-annotations
 
     eval_file = os.path.join(FLAGS.output_dir, "eval.tf_record")
     file_based_convert_examples_to_features(eval_examples, label_list,
@@ -979,7 +980,7 @@ def main(_):
       # will get dropped. So we pad with fake examples which are ignored
       # later on.
       while len(predict_examples) % FLAGS.predict_batch_size != 0:
-        predict_examples.append(PaddingInputExample())
+        predict_examples.append(PaddingInputExample())  # pytype: disable=attribute-error  # always-use-return-annotations
 
     predict_file = os.path.join(FLAGS.output_dir, "predict.tf_record")
     file_based_convert_examples_to_features(predict_examples, label_list,

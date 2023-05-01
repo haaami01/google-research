@@ -1,4 +1,4 @@
-// Copyright 2022 The Google Research Authors.
+// Copyright 2023 The Google Research Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -383,7 +383,7 @@ std::vector<std::unique_ptr<StdVectorFst>> LoadSamples(
   }
   std::vector<std::unique_ptr<StdVectorFst>> fsts;
   while (!far_reader->Done()) {
-    fsts.push_back(absl::make_unique<StdVectorFst>(*far_reader->GetFst()));
+    fsts.push_back(std::make_unique<StdVectorFst>(*far_reader->GetFst()));
     far_reader->Next();
   }
   LOG(INFO) << "Loaded " << fsts.size() << " samples.";

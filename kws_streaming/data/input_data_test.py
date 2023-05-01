@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2022 The Google Research Authors.
+# Copyright 2023 The Google Research Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -79,6 +79,10 @@ class InputDataTest(tf.test.TestCase):
         "pick_deterministically": 0,
         "causal_data_frame_padding": 0,
         "wav": 1,
+        "micro_enable_pcan": True,
+        "micro_features_scale": (10. / 256.0),
+        "micro_min_signal_remaining": 0.05,
+        "micro_out_scale": 1,
     }
     return DictStruct(**dummy_flags)
 

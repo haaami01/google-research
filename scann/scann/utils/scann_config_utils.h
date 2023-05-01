@@ -1,4 +1,4 @@
-// Copyright 2022 The Google Research Authors.
+// Copyright 2023 The Google Research Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 #define SCANN_UTILS_SCANN_CONFIG_UTILS_H_
 
 #include <cstdint>
+#include <string>
 
 #include "scann/data_format/datapoint.h"
 #include "scann/data_format/features.pb.h"

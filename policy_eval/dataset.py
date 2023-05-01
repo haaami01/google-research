@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2022 The Google Research Authors.
+# Copyright 2023 The Google Research Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -263,7 +263,7 @@ class D4rlDataset(Dataset):
       new_trajectory = end_trajectory
 
     if noise_scale > 0.0:
-      dataset['trajectories'] = augment_data(dataset['trajectories'],
+      dataset['trajectories'] = augment_data(dataset['trajectories'],  # pytype: disable=wrong-arg-types  # dict-kwargs
                                              noise_scale)
 
     dataset['trajectories']['steps'] = [

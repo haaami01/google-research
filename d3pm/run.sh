@@ -1,4 +1,4 @@
-# Copyright 2022 The Google Research Authors.
+# Copyright 2023 The Google Research Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -24,3 +24,4 @@ pip install --upgrade pip
 pip install -r d3pm/requirements.txt
 
 python -m d3pm.images.main_test
+python -m d3pm.text.main_test

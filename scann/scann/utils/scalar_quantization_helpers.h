@@ -1,4 +1,4 @@
-// Copyright 2022 The Google Research Authors.
+// Copyright 2023 The Google Research Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,7 +15,9 @@
 #ifndef SCANN_UTILS_SCALAR_QUANTIZATION_HELPERS_H_
 #define SCANN_UTILS_SCALAR_QUANTIZATION_HELPERS_H_
 
+#include <cmath>
 #include <cstdint>
+#include <vector>
 
 #include "scann/data_format/datapoint.h"
 #include "scann/data_format/dataset.h"

@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2022 The Google Research Authors.
+# Copyright 2023 The Google Research Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Lint as: python3
 """Classes for processing different datasets into a common format."""
 
 import collections
@@ -24,8 +23,6 @@ from bert import tokenization
 from language.labs.drkit import input_fns as input_utils
 import tensorflow.compat.v1 as tf
 from tqdm import tqdm
-
-from tensorflow.contrib import data as contrib_data
 
 
 class Example(object):
@@ -192,7 +189,7 @@ def input_fn_builder(input_file, is_training, drop_remainder,
       d = d.shuffle(buffer_size=100)
 
     d = d.apply(
-        contrib_data.map_and_batch(
+        tf.data.experimental.map_and_batch(
             lambda record: _decode_record(record, names_to_features),
             batch_size=batch_size,
             drop_remainder=drop_remainder))

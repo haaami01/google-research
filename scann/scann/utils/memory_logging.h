@@ -1,4 +1,4 @@
-// Copyright 2022 The Google Research Authors.
+// Copyright 2023 The Google Research Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@
 #ifndef SCANN_UTILS_MEMORY_LOGGING_H_
 #define SCANN_UTILS_MEMORY_LOGGING_H_
 
-#include <hash_set>
+#include <string>
 #include <type_traits>
 #include <unordered_map>
 #include <unordered_set>

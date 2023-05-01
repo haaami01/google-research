@@ -1,4 +1,4 @@
-// Copyright 2022 The Google Research Authors.
+// Copyright 2023 The Google Research Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,6 +13,11 @@
 // limitations under the License.
 
 #include "scann/utils/threads.h"
+
+#include <algorithm>
+#include <functional>
+#include <string>
+#include <utility>
 
 #include "absl/time/time.h"
 

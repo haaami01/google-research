@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2022 The Google Research Authors.
+# Copyright 2023 The Google Research Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,11 +15,7 @@
 
 """Policy Gradient Controller from the original NAS paper."""
 
-# copybara:strip_begin
-import pyglove.google as pg
-# copybara:strip_end_and_replace
-# import pyglove as pg
-# copybara:strip_end
+import pyglove as pg
 from es_enas.controllers import base_controller
 
 

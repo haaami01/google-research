@@ -1,4 +1,4 @@
-# Copyright 2022 The Google Research Authors.
+# Copyright 2023 The Google Research Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -38,11 +38,6 @@ bash tools/get_wikiextractor.sh
 
 # Process the WikiNews dumps into lightly marked-up JSON format.
 bash mewsli-9/run_wikiextractor.sh
-
-# Install dependencies into a virtual environment.
-virtualenv -p python3 ./env
-source ./env/bin/activate
-pip install -r wikinews_extractor/requirements.txt
 
 # Parse clean text from the processed dumps according to the Mewsli-9 dataset
 # descriptors.

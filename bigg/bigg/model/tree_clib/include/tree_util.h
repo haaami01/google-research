@@ -1,4 +1,4 @@
-// Copyright 2022 The Google Research Authors.
+// Copyright 2023 The Google Research Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -53,7 +53,7 @@ class AdjRow
     ~AdjRow();
     void init(int row, int col_start, int col_end);
 
-    void insert_edges(std::vector<int>& col_indices);
+    void insert_edges(std::vector<int>& col_indices, int edge_offset);
     AdjNode* root;
     int row, max_col;
 

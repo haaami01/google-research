@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2022 The Google Research Authors.
+# Copyright 2023 The Google Research Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -78,7 +78,7 @@ class XCMGGATest(parameterized.TestCase):
       )
   def test_mgga_xc_unpolarized_against_libxc(self, xc_name, xc_fun):
     eps_xc_ref, rhograds_ref, _, _ = libxc.eval_xc(
-        xc_name, self.rho, spin=0, relativity=0, deriv=1)
+        xc_name, self.rho_and_derivs, spin=0, relativity=0, deriv=1)
     vrho_ref, vsigma_ref, _, vtau_ref = rhograds_ref
     e_xc_ref = eps_xc_ref * self.rho
 

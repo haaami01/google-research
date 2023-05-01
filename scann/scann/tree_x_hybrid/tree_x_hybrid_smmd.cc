@@ -1,4 +1,4 @@
-// Copyright 2022 The Google Research Authors.
+// Copyright 2023 The Google Research Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,8 +17,11 @@
 #include "scann/tree_x_hybrid/tree_x_hybrid_smmd.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
+#include <memory>
 #include <unordered_set>
+#include <utility>
 
 #include "absl/base/casts.h"
 #include "absl/container/flat_hash_set.h"
@@ -918,6 +921,7 @@ TreeXHybridSMMD<T>::SharedFloatDatasetIfNeeded() {
       vector<float> storage,
       CombineLeafDatasets<float>(dataset_size, "float32", datapoints_by_token_,
                                  get_dataset));
+  if (storage.empty()) return shared_ptr<const DenseDataset<float>>(nullptr);
   return std::make_shared<const DenseDataset<float>>(storage, dataset_size);
 }
 

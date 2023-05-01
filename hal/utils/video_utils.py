@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2022 The Google Research Authors.
+# Copyright 2023 The Google Research Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,7 +15,6 @@
 
 """This file contains the utilities for saving videos."""
 # pylint: disable=g-inconsistent-quotes
-# pylint: disable=g-bad-import-order
 # pylint: disable=g-import-not-at-top
 # pylint: disable=unused-import
 from __future__ import absolute_import
@@ -27,13 +26,9 @@ import math
 import os
 
 from absl import logging
+import cv2
 import numpy as np
 
-
-try:
-  import cv2
-except ImportError as e:
-  print(e)
 
 
 font = cv2.FONT_HERSHEY_SIMPLEX

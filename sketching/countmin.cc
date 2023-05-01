@@ -1,4 +1,4 @@
-// Copyright 2022 The Google Research Authors.
+// Copyright 2023 The Google Research Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -152,7 +152,7 @@ void CountMinCU::Update(uint item, float value) {
 }
 
 std::unique_ptr<CountMin> CountMin::CreateCM(uint hash_count, uint hash_size) {
-  return absl::make_unique<CountMin>(CountMin(hash_count, hash_size));
+  return std::make_unique<CountMin>(CountMin(hash_count, hash_size));
 }
 
 std::unique_ptr<CountMin> CountMin::CreateCopy() const {
@@ -164,7 +164,7 @@ CountMinCU::CountMinCU(uint hash_count, uint hash_size)
 
 std::unique_ptr<CountMin> CountMinCU::CreateCM_CU(uint hash_count,
                                                   uint hash_size) {
-  return absl::make_unique<CountMinCU>(CountMinCU(hash_count, hash_size));
+  return std::make_unique<CountMinCU>(CountMinCU(hash_count, hash_size));
 }
 
 std::unique_ptr<CountMin> CountMinCU::CreateCopy() const {

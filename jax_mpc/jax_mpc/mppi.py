@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2022 The Google Research Authors.
+# Copyright 2023 The Google Research Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -151,7 +151,7 @@ class MPPI(MPC):
       for t in range(self.n_steps):
         env_state, output = rollout_step(env_state, actions[t, :])
         scan_output.append(output)
-      s, r = jax.tree_util.tree_multimap(lambda *x: jnp.stack(x), *scan_output)
+      s, r = jax.tree_util.tree_map(lambda *x: jnp.stack(x), *scan_output)
     else:
       _, (s, r) = jax.lax.scan(rollout_step, env_state, actions)
 

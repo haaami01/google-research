@@ -1,4 +1,4 @@
-// Copyright 2022 The Google Research Authors.
+// Copyright 2023 The Google Research Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,8 +16,10 @@
 
 #include "scann/utils/util_functions.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <numeric>
+#include <string>
 
 #include "absl/base/internal/sysinfo.h"
 #include "absl/container/flat_hash_map.h"

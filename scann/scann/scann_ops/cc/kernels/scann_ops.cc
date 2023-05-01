@@ -1,4 +1,4 @@
-// Copyright 2022 The Google Research Authors.
+// Copyright 2023 The Google Research Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,7 +14,11 @@
 
 
 
+#include <algorithm>
 #include <limits>
+#include <memory>
+#include <string>
+#include <vector>
 
 #include "absl/memory/memory.h"
 #include "absl/synchronization/mutex.h"
@@ -99,7 +103,7 @@ class ScannCreateSearcherOp : public ResourceOpKernel<ScannResource> {
   Status CreateResource(ScannResource** ret)
       ABSL_EXCLUSIVE_LOCKS_REQUIRED(mu_) override {
     *ret = new ScannResource();
-    return Status::OK();
+    return OkStatus();
   }
 };
 
@@ -376,7 +380,7 @@ class TensorsToScannOp : public ResourceOpKernel<ScannResource> {
   Status CreateResource(ScannResource** ret)
       ABSL_EXCLUSIVE_LOCKS_REQUIRED(mu_) override {
     *ret = new ScannResource();
-    return Status::OK();
+    return OkStatus();
   }
 };
 

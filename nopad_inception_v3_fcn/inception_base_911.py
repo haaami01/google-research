@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2022 The Google Research Authors.
+# Copyright 2023 The Google Research Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,15 +13,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Lint as: python2, python3
 """No padding inception FCN base network for a 911x911 receptive field.
 
 This is a variant of inception v3 FCN that takes a larger receptive field and
 predicts a larger patch size.
 """
 import tensorflow.compat.v1 as tf
-
-from tensorflow.contrib import slim
+import tf_slim as slim
 
 # The downsampling factor of the network.
 MODEL_DOWNSAMPLE_FACTOR = 2**4

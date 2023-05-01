@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2022 The Google Research Authors.
+# Copyright 2023 The Google Research Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Lint as: python3
 """Population class for keeping track of structures and rewards."""
 
 import collections
@@ -122,7 +121,7 @@ def deserialize_population_frame(frame, inplace=False):
   frame['structure'] = deserialize_structures(frame['structure'])
   if 'decoded_structure' in frame.columns:
     frame['decoded_structure'] = deserialize_structures(
-        frame['decoded_structure'], dtype=np.str)
+        frame['decoded_structure'], dtype=str)
   return frame
 
 

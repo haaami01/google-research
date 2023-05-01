@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2022 The Google Research Authors.
+# Copyright 2023 The Google Research Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -318,7 +318,7 @@ def fixed_point2_rev(f, res, x_star_bar):
   jacs = jax.tree_util.tree_map(lambda x: jnp.linalg.solve(pre_inv, x),
                                 reshaped_da)
   vjps = jax.tree_util.tree_map(lambda j: jnp.matmul(x_star_bar, j), jacs)
-  reshaped_vjps = jax.tree_util.tree_multimap(
+  reshaped_vjps = jax.tree_util.tree_map(
       lambda x, s: jnp.reshape(x, s[1:]), vjps, da_shapes)
   return reshaped_vjps, jnp.zeros_like(x_star)
 

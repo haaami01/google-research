@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2022 The Google Research Authors.
+# Copyright 2023 The Google Research Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,9 +16,9 @@
 # pylint: skip-file
 from absl import logging
 from jax import random
-from jax.experimental import stax
-from jax.experimental.stax import Dense, MaxPool, Relu, Flatten, LogSoftmax
-from jax.experimental import optimizers
+from jax.example_libraries import stax
+from jax.example_libraries.stax import Dense, MaxPool, Relu, Flatten, LogSoftmax
+from jax.example_libraries import optimizers
 from . import equations
 from . import meshes
 from . import gmres

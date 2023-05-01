@@ -1,4 +1,4 @@
-// Copyright 2022 The Google Research Authors.
+// Copyright 2023 The Google Research Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@
 
 #include <cstdint>
 #include <type_traits>
+#include <vector>
 
 #include "absl/memory/memory.h"
 #include "scann/partitioning/kmeans_tree_like_partitioner.h"

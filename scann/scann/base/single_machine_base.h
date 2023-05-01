@@ -1,4 +1,4 @@
-// Copyright 2022 The Google Research Authors.
+// Copyright 2023 The Google Research Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,6 +18,9 @@
 #define SCANN_BASE_SINGLE_MACHINE_BASE_H_
 
 #include <cstdint>
+#include <functional>
+#include <optional>
+#include <vector>
 
 #include "scann/base/search_parameters.h"
 #include "scann/base/single_machine_factory_options.h"
@@ -137,6 +140,9 @@ class UntypedSingleMachineSearcherBase {
   }
 
   virtual bool reordering_enabled() const = 0;
+
+  virtual bool exact_reordering_enabled() const = 0;
+  virtual bool fixed_point_reordering_enabled() const = 0;
 
   virtual DatapointIndex optimal_batch_size() const;
 
@@ -305,12 +311,12 @@ class SingleMachineSearcherBase : public UntypedSingleMachineSearcherBase {
 
   void DisableExactReordering() { DisableReordering(); }
 
-  bool exact_reordering_enabled() const {
+  bool exact_reordering_enabled() const final {
     return (reordering_helper_ &&
             reordering_helper_->name() == "ExactReordering");
   }
 
-  bool fixed_point_reordering_enabled() const;
+  bool fixed_point_reordering_enabled() const final;
 
   const ReorderingInterface<T>& reordering_helper() const {
     return *reordering_helper_;

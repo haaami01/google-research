@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2022 The Google Research Authors.
+# Copyright 2023 The Google Research Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@ from typing import Any, Dict, Tuple
 from absl import logging
 from clu import metric_writers
 import flax
+import flax.optim
 from flax.training import checkpoints
 import jax
 import jax.numpy as jnp
@@ -159,7 +160,7 @@ class TrainableModel:
                 jnp.all(jnp.isfinite(p)) for p in jax.tree_leaves(new_optimizer)
             ]))
         new_state_no_update = state.replace(step=step + 1)
-        state = jax.tree_multimap(lambda a, b: jnp.where(ok, a, b), new_state,
+        state = jax.tree_map(lambda a, b: jnp.where(ok, a, b), new_state,
                                   new_state_no_update)
       else:
         logging.info('Update skipping disabled')
@@ -324,7 +325,10 @@ class TrainableModel:
     # Set up model and training state
     state = jax.device_get(self.make_init_state())
     checkpoint_dir = os.path.join(work_unit_dir, 'checkpoints')
-    state = checkpoints.restore_checkpoint(checkpoint_dir, state)
+    try:
+      state = checkpoints.restore_checkpoint(checkpoint_dir, state)
+    except ValueError:
+      pass
     initial_step = int(state.step)
     state = flax.jax_utils.replicate(state)
 

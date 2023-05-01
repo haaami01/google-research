@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2022 The Google Research Authors.
+# Copyright 2023 The Google Research Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# python3
 """Train Latent Programmer model on random supervised training tasks."""
 
 # pytype: disable=wrong-arg-count
@@ -353,7 +352,7 @@ def train_step(state,
       optimizer.target, lp_optimizer.target)
   grads = jax.lax.pmean(grads, 'batch')
   new_optimizer = optimizer.apply_gradient(
-      jax.tree_multimap(jnp.add, grads[0], ae_grad), learning_rate=lr)
+      jax.tree_map(jnp.add, grads[0], ae_grad), learning_rate=lr)
   new_lp_optimizer = lp_optimizer.apply_gradient(grads[1], learning_rate=lr)
 
   metrics = compute_metrics(logits, programs, weights)

@@ -1,4 +1,4 @@
-// Copyright 2022 The Google Research Authors.
+// Copyright 2023 The Google Research Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -461,7 +461,7 @@ class FilterAnnotatedRecordingCollectionCalculator
          c9 = EvaluateExcludeUserIdCondition(input, cc);
 
     if (c1 && c2 && c3 && c4 && c5 && c6 && c7 && c8 && c9) {
-      auto result = absl::make_unique<AnnotatedRecordingCollection>(input);
+      auto result = std::make_unique<AnnotatedRecordingCollection>(input);
       cc->Outputs()
           .Tag(kFilteredAnnotatedRecordingCollectionTag)
           .Add(result.release(), ts);

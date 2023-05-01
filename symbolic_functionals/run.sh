@@ -1,4 +1,4 @@
-# Copyright 2022 The Google Research Authors.
+# Copyright 2023 The Google Research Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -35,7 +35,7 @@ python3 -m symbolic_functionals.syfes.example.single_run \
 --config.xc.feature_names_css=u \
 --config.xc.feature_names_cos=u \
 --config.xc.component_mutation_probabilities=1.,0.,0. \
---config.xc.instruction_pool=/tmp/instruction_pool/b79x_u_minimum.json \
+--config.xc.instruction_pool=`pwd`/symbolic_functionals/syfes/example/instruction_pool/b97x_u_minimum.json \
 --config.xc.num_shared_parameters=3,0,0 \
 --config.xc.num_variables=3 \
 --config.xc.max_num_instructions=4 \
